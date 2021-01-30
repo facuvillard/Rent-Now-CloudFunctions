@@ -85,7 +85,7 @@ exports.sendContactEmail = functions.https.onCall(async (data, context) => {
   try {
     let transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
-      port: 587,
+      port: 465,
       secure: false,
       auth: {
         user: "contacto.rentnow@gmail.com",
