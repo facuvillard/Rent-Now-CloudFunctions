@@ -88,8 +88,8 @@ exports.sendContactEmail = functions.https.onCall(async (data, context) => {
       port: 587,
       secure: false,
       auth: {
-        user: "juanpbergues@gmail.com",
-        pass: "JotaPeBe100495",
+        user: "contacto.rentnow@gmail.com",
+        pass: "renteandoahora0*9",
       },
     });
 
