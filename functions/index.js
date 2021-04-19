@@ -2,6 +2,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 const moment = require("moment");
+const {getMinAndMaxHora, buildHorariosList} = require("./utils")
 
 admin.initializeApp();
 
@@ -64,16 +65,14 @@ exports.updateUsuario = functions.firestore
       }
       return {
         status: "OK",
-        message: `Usuario con el email ${
-          after.data().email
-        } actualizado con exito`,
+        message: `Usuario con el email ${after.data().email
+          } actualizado con exito`,
       };
     } catch (error) {
       return {
         status: "ERROR",
-        message: `Error al actualizar usuario con el email ${
-          after.data().email
-        }`,
+        message: `Error al actualizar usuario con el email ${after.data().email
+          }`,
         error: error,
       };
     }
@@ -138,68 +137,219 @@ exports.updateReservasState = functions.pubsub
       .where("año", "==", year)
       .where("mes", "==", month)
       .where("dia", "==", day)
-    
+
     const reservas = await query.get()
 
     reservas.forEach(snapshot => {
-        let changed = false
-        const reserva = snapshot.data()
-        console.log("RESERVA", reserva)
-        const estadoActual = reserva.estados[reserva.estados.length - 1] 
-        const estados = reserva.estados
+      let changed = false
+      const reserva = snapshot.data()
+      console.log("RESERVA", reserva)
+      const estadoActual = reserva.estados[reserva.estados.length - 1]
+      const estados = reserva.estados
 
-        const fechaInicioReserva = moment(reserva.fechaInicio.toDate()).utcOffset(-180)
-        const fechaFinReserva = moment(reserva.fechaFin.toDate()).utcOffset(-180)
-        console.log("FECHA INICIO " + fechaInicioReserva.toString(),"FECHA FIN " + fechaFinReserva.toString(),"NOW " + now.toString())
-        console.log("ESTADO ACTUAL: " + estadoActual.estado)
+      const fechaInicioReserva = moment(reserva.fechaInicio.toDate()).utcOffset(-180)
+      const fechaFinReserva = moment(reserva.fechaFin.toDate()).utcOffset(-180)
+      console.log("FECHA INICIO " + fechaInicioReserva.toString(), "FECHA FIN " + fechaFinReserva.toString(), "NOW " + now.toString())
+      console.log("ESTADO ACTUAL: " + estadoActual.estado)
 
-        switch (estadoActual.estado) {
-            case "CONFIRMADA" :
-                console.log("ENTRO A CONFIRMADA")
-                if(now.isBetween(fechaInicioReserva, fechaFinReserva, 'minute', '[]')) {
-                // if(fechaInicioReserva.hour() === hour && fechaInicioReserva.minute() === minutes) {
-                  console.log("SE CAMBIO A EN HORARIO")
-                    estados.push({
-                        estado: 'EN HORARIO',
-                        fecha: admin.firestore.Timestamp.now(),
-                        motivo: ''
-                    })
-                    changed = true
-                }
-                break
-            case "EN CURSO" :
-                console.log("ENTRO A EN CURSO")
-                if(fechaFinReserva.isSameOrBefore(now, "minute")) {
-                  console.log("SE CAMBIO A FINALIZADA")
-                    estados.push({
-                        estado: 'FINALIZADA',
-                        fecha: admin.firestore.Timestamp.now(),
-                        motivo: ''
-                    })
-                    changed = true
-                }
-                break
-            case "EN HORARIO": 
-            console.log("ENTRO A EN HORARIO")
-            if(fechaFinReserva.isSameOrBefore(now, "minute")){
-              console.log("SE CAMBIO A FINALIZADA")
-              estados.push({
-                estado: 'FINALIZADA',
-                fecha: admin.firestore.Timestamp.now(),
-                motivo: "La reserva nunca se pasó a EN CURSO."
-              })
-              changed = true
-            } 
-            break
-                
-            default:                
-                break
-        }
+      switch (estadoActual.estado) {
+        case "CONFIRMADA":
+          console.log("ENTRO A CONFIRMADA")
+          if (now.isBetween(fechaInicioReserva, fechaFinReserva, 'minute', '[]')) {
+            // if(fechaInicioReserva.hour() === hour && fechaInicioReserva.minute() === minutes) {
+            console.log("SE CAMBIO A EN HORARIO")
+            estados.push({
+              estado: 'EN HORARIO',
+              fecha: admin.firestore.Timestamp.now(),
+              motivo: ''
+            })
+            changed = true
+          }
+          break
+        case "EN CURSO":
+          console.log("ENTRO A EN CURSO")
+          if (fechaFinReserva.isSameOrBefore(now, "minute")) {
+            console.log("SE CAMBIO A FINALIZADA")
+            estados.push({
+              estado: 'FINALIZADA',
+              fecha: admin.firestore.Timestamp.now(),
+              motivo: ''
+            })
+            changed = true
+          }
+          break
+        case "EN HORARIO":
+          console.log("ENTRO A EN HORARIO")
+          if (fechaFinReserva.isSameOrBefore(now, "minute")) {
+            console.log("SE CAMBIO A FINALIZADA")
+            estados.push({
+              estado: 'FINALIZADA',
+              fecha: admin.firestore.Timestamp.now(),
+              motivo: "La reserva nunca se pasó a EN CURSO."
+            })
+            changed = true
+          }
+          break
 
-        if(changed) {
-            console.log("SE EJECUTO UPDATE")
-            snapshot.ref.update({estados})
-        }
+        default:
+          break
+      }
+
+      if (changed) {
+        console.log("SE EJECUTO UPDATE")
+        snapshot.ref.update({ estados })
+      }
 
     })
   });
+
+exports.getTiposEspacioByComplejoId = functions.https.onCall(async (idComplejo) => {
+  try {
+    let tiposEspacioUnicos = []
+    const tipoEspacios = (await admin.firestore().collection('espacios').where("idComplejo", "==", idComplejo).get()).docs
+
+    tipoEspacios.forEach(doc => {
+      const docData = doc.data();
+      if (tiposEspacioUnicos.indexOf(docData.tipoEspacio) === -1) {
+        tiposEspacioUnicos.push(docData.tipoEspacio)
+      }
+    })
+
+    console.log("Espacios", idComplejo, tipoEspacios);
+    console.log("Tipo Espacios", tiposEspacioUnicos);
+    return {
+      status: "OK",
+      message: `Tipos de espacio del complejo consultados con éxito.`,
+      data: tiposEspacioUnicos
+    };
+  } catch (error) {
+    console.log("ERROR", error);
+    return {
+      status: "ERROR",
+      message: `Error al consultar los tipos de espacio`,
+      error: error,
+    };
+  }
+});
+
+exports.createDocForNewUser = functions.https.onCall(async (extraData) => {
+  try {
+    console.log('extra user data', extraData)
+    await admin
+      .firestore()
+      .collection("usuariosApp")
+      .doc(extraData.uid)
+      .set({
+        nombre: extraData.nombre,
+        apellido: extraData.apellido,
+        email: extraData.email,
+        habilitado: true,
+        ciudad: extraData.ciudad,
+        provincia: extraData.provincia
+      });
+
+    return {
+      status: "OK",
+      message: `Usuario creado`,
+    };
+  }
+  catch (error) {
+    return {
+      status: "ERROR",
+      message: "Error al crear usuario",
+      error: error,
+    };
+  }
+});
+
+
+/**
+obtenerHorariosDisponiblesParaDiaAndTipoEspacio(dia, tipoEspacio, idComplejo, duracion) {
+  obtener los espacios de idComplejo y tipoEspacio
+  se construye una lista de los horarios en que podian ser reservados los espacios de la siguiente manera :  [{desde: 8:00 (minima horaDesde de los espacios) , hasta: 9:00 , disponible: false,  espacios:[]}, 
+                                                                                                                ....., 
+                                                                                                                {desde: 8:00 , hasta: 9:00 (maxima horaHasta de los espacios) , disponible: true, espacios:[id1,id2]} ]
+ 
+  por cada espacio se obtienen las reservas filtrando por el dia
+  por cada reserva se elimina el espacio del listado de espacios de ese horario
+  retornar horariosDisponibles, espacios
+
+}
+
+*/
+
+exports.getFreeHorariosAndEspacios =  functions.https.onCall(async (params) =>{
+  try{
+    console.log("ENTRE A LA FUNCION");
+    // const {fecha,tipoEspacio,idComplejo,duracion} = params;
+    console.log("0-PARAMETROS", params)
+    const espaciosDocs =  (await admin.firestore().collection('espacios')
+                                      .where("idComplejo", "==", params.idComplejo)
+                                      .where("tipoEspacio", "==", params.tipoEspacio)
+                                      .get()).docs
+    console.log("1-ESPACIOSDOCS",espaciosDocs)
+    const day = moment(params.fecha).date();
+    const month = moment(params.fecha).month();
+    const year = moment(params.fecha).year();
+    console.log("2-DAYMONTHYEAR",{day,month,year})
+    let espacios = []
+    espaciosDocs.forEach(espacio => {
+      let espacioObj = espacio.data();
+      espacioObj.id = espacio.id
+      espacios.push(espacioObj)
+    })
+
+    let minMaxHora = getMinAndMaxHora(espacios);
+    let minHoraDesde = minMaxHora.minHoraDesde
+    let maxHoraHasta = minMaxHora.maxHoraHasta
+    console.log("3-MINANDMAX",{minHoraDesde,maxHoraHasta})
+    let horariosList = buildHorariosList(minHoraDesde, maxHoraHasta, params.duracion, espacios.map(espacio => espacio.id));
+    console.log("4-HORARIOSLIST",horariosList)
+
+    espacios.forEach(async espacio => {
+      const reservas = (await admin.firestore().collection('reservas')
+                              .where("espacio.id", "==", espacio.id)
+                              .where("año", "==", year)
+                              .where("mes", "==", month)
+                              .where("dia", "==", day).get()).docs
+      
+      horariosList.forEach(horario => {
+        reservas.forEach(reservaDoc => {
+          const reserva = reservaDoc.data();
+          const fechaInicio = moment(reserva.fechaInicio, "HH:mm");
+          const fechaFin = moment(reserva.fechaFin, "HH:mm");
+
+          if(
+            (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && fechaFin.isBetween(moment(horario.horaDesde,"HH:mm"), moment(horario.horaHasta, "HH:mm"), "minute", "(]")) ||
+            (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrAfter(fechaFin)) ||
+            (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin)) ||
+            (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin))
+            ) {
+              //sacar id de espacio del horario
+             const filteredIds = horario.espacios.filter( id => id !== espacio.id)
+             horario.espacios = filteredIds
+            }
+
+        })
+      })
+    })
+
+    return {
+      status: "OK",
+      message: `Horarios consultados con éxito.`,
+      data: {
+        espacios: espacios,
+        horarios: horariosList
+      }
+    };
+  } catch (error) {
+    console.log("ERROR",error);
+    return {
+      status: "ERROR",
+      message: "Error al consultar horarios",
+      error: error,
+    };
+  }
+})
+
+
