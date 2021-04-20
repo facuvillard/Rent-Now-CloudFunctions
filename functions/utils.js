@@ -2,9 +2,11 @@ var moment = require("moment")
 
 exports.getMinAndMaxHora = (espacios) => {
   console.log("ESTOY EN GETMINMAXHORA")
-  let minHoraDesde, maxHoraHasta
+  let minHoraDesde
+  let maxHoraHasta
   espacios.forEach(espacio => {
-    const { horaDesde, horaHasta } = espacio
+    const horaDesde = espacio.horaDesde;
+    const horaHasta = espacio.horaHasta;
     if (!minHoraDesde) {
       minHoraDesde = horaDesde
     }
@@ -15,15 +17,15 @@ exports.getMinAndMaxHora = (espacios) => {
     if (moment(horaDesde, "HH:mm").isBefore(moment(minHoraDesde, "HH:mm"))) minHoraDesde = horaDesde;
     if (moment(horaHasta, "HH:mm").isAfter(moment(maxHoraHasta, "HH:mm"))) maxHoraHasta = horaHasta;
   })
-
   return { minHoraDesde, maxHoraHasta }
 }
+
 exports.buildHorariosList = (minHoraDesde, maxHoraHasta, duracion, idsEspacios) => {
   let index = 1
   let lastHoraHasta = moment(minHoraDesde, "HH:mm").add(duracion, "hours")
   let list = [{
-    horaDesde: moment(minHoraDesde, "HH:mm"),
-    horaHasta: lastHoraHasta,
+    horaDesde: moment(minHoraDesde, "HH:mm").toString(),
+    horaHasta: lastHoraHasta.toString(),
     espacios: idsEspacios
   }];
   console.log(list[list.length - 1].horaHasta.toString())
@@ -31,8 +33,8 @@ exports.buildHorariosList = (minHoraDesde, maxHoraHasta, duracion, idsEspacios) 
     && moment(lastHoraHasta, "HH:mm").add(duracion, "hours").isSameOrBefore(moment(maxHoraHasta, "HH:mm"))) {
     if (index !== 1) {
       list.push({
-        horaDesde: lastHoraHasta,
-        horaHasta: moment(lastHoraHasta, "HH:mm").add(duracion, "h"),
+        horaDesde: lastHoraHasta.toString(),
+        horaHasta: moment(lastHoraHasta, "HH:mm").add(duracion, "h").toString(),
         espacios: idsEspacios
       })
       lastHoraHasta = moment(lastHoraHasta, "HH:mm").add(duracion, "h")
@@ -43,4 +45,18 @@ exports.buildHorariosList = (minHoraDesde, maxHoraHasta, duracion, idsEspacios) 
   return list
 }
 
-  // buildHorariosList("08:00", "19:00", 2.5,["a","b","c"])
+
+// const hola = (fechaInicioReserva, fechaFinReserva, horario) => {
+//   const fechaInicio = moment(fechaInicioReserva, "HH:mm");
+//   const fechaFin = moment(fechaFinReserva, "HH:mm");
+//   if (
+//     (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && fechaFin.isBetween(moment(horario.horaDesde, "HH:mm"), moment(horario.horaHasta, "HH:mm"), "minute", "(]")) ||
+//     (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrAfter(fechaFin)) ||
+//     (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin)) ||
+//     (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin))
+//   ) {
+//     console.log('8-Entro al IF')
+//   }
+// }
+
+// hola()

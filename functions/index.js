@@ -2,7 +2,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 const moment = require("moment");
-const {getMinAndMaxHora, buildHorariosList} = require("./utils")
+const { getMinAndMaxHora, buildHorariosList } = require("./utils")
 
 admin.initializeApp();
 
@@ -278,20 +278,20 @@ obtenerHorariosDisponiblesParaDiaAndTipoEspacio(dia, tipoEspacio, idComplejo, du
 
 */
 
-exports.getFreeHorariosAndEspacios =  functions.https.onCall(async (params) =>{
-  try{
+exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
+  try {
     console.log("ENTRE A LA FUNCION");
     // const {fecha,tipoEspacio,idComplejo,duracion} = params;
     console.log("0-PARAMETROS", params)
-    const espaciosDocs =  (await admin.firestore().collection('espacios')
-                                      .where("idComplejo", "==", params.idComplejo)
-                                      .where("tipoEspacio", "==", params.tipoEspacio)
-                                      .get()).docs
-    console.log("1-ESPACIOSDOCS",espaciosDocs)
-    const day = moment(params.fecha).date();
-    const month = moment(params.fecha).month();
-    const year = moment(params.fecha).year();
-    console.log("2-DAYMONTHYEAR",{day,month,year})
+    const espaciosDocs = (await admin.firestore().collection('espacios')
+      .where("idComplejo", "==", params.idComplejo)
+      .where("tipoEspacio", "==", params.tipoEspacio)
+      .get()).docs
+    console.log("1-ESPACIOSDOCS", espaciosDocs)
+    const day = moment(params.fecha, 'DD/MM/YYYY').date();
+    const month = moment(params.fecha, 'DD/MM/YYYY').month();
+    const year = moment(params.fecha, 'DD/MM/YYYY').year();
+    console.log("2-DAYMONTHYEAR", { day, month, year })
     let espacios = []
     espaciosDocs.forEach(espacio => {
       let espacioObj = espacio.data();
@@ -302,48 +302,58 @@ exports.getFreeHorariosAndEspacios =  functions.https.onCall(async (params) =>{
     let minMaxHora = getMinAndMaxHora(espacios);
     let minHoraDesde = minMaxHora.minHoraDesde
     let maxHoraHasta = minMaxHora.maxHoraHasta
-    console.log("3-MINANDMAX",{minHoraDesde,maxHoraHasta})
+    console.log("3-MINANDMAX", { minHoraDesde, maxHoraHasta })
     let horariosList = buildHorariosList(minHoraDesde, maxHoraHasta, params.duracion, espacios.map(espacio => espacio.id));
-    console.log("4-HORARIOSLIST",horariosList)
+    console.log("4-HORARIOSLIST", horariosList)
 
+    await Promise.all(
     espacios.forEach(async espacio => {
       const reservas = (await admin.firestore().collection('reservas')
-                              .where("espacio.id", "==", espacio.id)
-                              .where("año", "==", year)
-                              .where("mes", "==", month)
-                              .where("dia", "==", day).get()).docs
-      
-      horariosList.forEach(horario => {
-        reservas.forEach(reservaDoc => {
-          const reserva = reservaDoc.data();
-          const fechaInicio = moment(reserva.fechaInicio, "HH:mm");
-          const fechaFin = moment(reserva.fechaFin, "HH:mm");
+        .where("espacio.id", "==", espacio.id)
+        .where("año", "==", year)
+        .where("mes", "==", month)
+        .where("dia", "==", day).get()).docs
 
-          if(
-            (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && fechaFin.isBetween(moment(horario.horaDesde,"HH:mm"), moment(horario.horaHasta, "HH:mm"), "minute", "(]")) ||
+      console.log('5-Reservas', reservas)
+      
+      reservas.forEach(reservaDoc => {
+        const reserva = reservaDoc.data();
+        const fechaInicio = moment(reserva.fechaInicio.toDate(), "HH:mm");
+        const fechaFin = moment(reserva.fechaFin.toDate(), "HH:mm");
+        console.log('7-Reserva', reserva)
+        horariosList.forEach((horario, index) => {
+          console.log('6-Horario', horario)
+          if (
+            (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && fechaFin.isBetween(moment(horario.horaDesde, "HH:mm"), moment(horario.horaHasta, "HH:mm"), "minute", "(]")) ||
             (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrAfter(fechaFin)) ||
             (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin)) ||
             (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin))
             ) {
+              console.log('8-Entro al IF')
               //sacar id de espacio del horario
-             const filteredIds = horario.espacios.filter( id => id !== espacio.id)
-             horario.espacios = filteredIds
+              const filteredIds = horario.espacios.filter(id => {
+                console.log('9-IDS', espacio.id, id)
+                return id !== espacio.id
+              })
+              console.log('10-IDS FITRADOS', filteredIds)
+              
+              horariosList[index].espacios = filteredIds
             }
-
+          })
         })
       })
-    })
-
-    return {
-      status: "OK",
-      message: `Horarios consultados con éxito.`,
-      data: {
-        espacios: espacios,
-        horarios: horariosList
-      }
-    };
+      )  
+      console.log('11-RETORNANDO UNA PIJA')
+      return {
+        status: "OK",
+        message: `Horarios consultados con éxito.`,
+        data: {
+          espacios: espacios,
+          horarios: horariosList
+        }
+      };
   } catch (error) {
-    console.log("ERROR",error);
+    console.log("ERROR", error);
     return {
       status: "ERROR",
       message: "Error al consultar horarios",
