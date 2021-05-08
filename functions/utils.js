@@ -24,17 +24,17 @@ exports.buildHorariosList = (minHoraDesde, maxHoraHasta, duracion, idsEspacios) 
   let index = 1
   let lastHoraHasta = moment(minHoraDesde, "HH:mm").add(duracion, "hours")
   let list = [{
-    horaDesde: moment(minHoraDesde, "HH:mm").toString(),
-    horaHasta: lastHoraHasta.toString(),
+    horaDesde: minHoraDesde,
+    horaHasta: moment(minHoraDesde, "HH:mm").add(duracion, "hours").format("HH:mm"),
     espacios: idsEspacios
   }];
-  console.log(list[list.length - 1].horaHasta.toString())
-  while (moment(list[list.length - 1].horaHasta).isBefore(moment(maxHoraHasta, "HH:mm"))
+
+  while (moment(list[list.length - 1].horaHasta,"HH:mm").isBefore(moment(maxHoraHasta, "HH:mm"))
     && moment(lastHoraHasta, "HH:mm").add(duracion, "hours").isSameOrBefore(moment(maxHoraHasta, "HH:mm"))) {
     if (index !== 1) {
       list.push({
-        horaDesde: lastHoraHasta.toString(),
-        horaHasta: moment(lastHoraHasta, "HH:mm").add(duracion, "h").toString(),
+        horaDesde: lastHoraHasta.format("HH:mm"),
+        horaHasta: moment(lastHoraHasta, "HH:mm").add(duracion, "h").format("HH:mm"),
         espacios: idsEspacios
       })
       lastHoraHasta = moment(lastHoraHasta, "HH:mm").add(duracion, "h")
@@ -44,7 +44,7 @@ exports.buildHorariosList = (minHoraDesde, maxHoraHasta, duracion, idsEspacios) 
   console.log(list)
   return list
 }
-
+// exports.buildHorariosList("08:00","23:00", 1, ["a","b"])
 
 // const hola = (fechaInicioReserva, fechaFinReserva, horario) => {
 //   const fechaInicio = moment(fechaInicioReserva, "HH:mm");

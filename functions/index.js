@@ -4,6 +4,10 @@ const nodemailer = require("nodemailer");
 const moment = require("moment");
 const { getMinAndMaxHora, buildHorariosList } = require("./utils")
 
+
+// Comandos: 
+//   -Para deployar todas las funciones firebase deploy --only functions
+//   -Para deployar solo una funcion especifica firebase deploy --only "functions:nombreFuncion"
 admin.initializeApp();
 
 exports.createUsuario = functions.https.onCall(async (userToRegister) => {
@@ -280,18 +284,13 @@ obtenerHorariosDisponiblesParaDiaAndTipoEspacio(dia, tipoEspacio, idComplejo, du
 
 exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
   try {
-    console.log("ENTRE A LA FUNCION");
-    // const {fecha,tipoEspacio,idComplejo,duracion} = params;
-    console.log("0-PARAMETROS", params)
     const espaciosDocs = (await admin.firestore().collection('espacios')
       .where("idComplejo", "==", params.idComplejo)
       .where("tipoEspacio", "==", params.tipoEspacio)
       .get()).docs
-    console.log("1-ESPACIOSDOCS", espaciosDocs)
     const day = moment(params.fecha, 'DD/MM/YYYY').date();
     const month = moment(params.fecha, 'DD/MM/YYYY').month();
     const year = moment(params.fecha, 'DD/MM/YYYY').year();
-    console.log("2-DAYMONTHYEAR", { day, month, year })
     let espacios = []
     espaciosDocs.forEach(espacio => {
       let espacioObj = espacio.data();
@@ -299,51 +298,50 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
       espacios.push(espacioObj)
     })
 
-    let minMaxHora = getMinAndMaxHora(espacios);
+    let minMaxHora = {
+      minHoraDesde : "08:00",
+      maxHoraHasta: "23:00"
+    }       //getMinAndMaxHora(espacios);
     let minHoraDesde = minMaxHora.minHoraDesde
     let maxHoraHasta = minMaxHora.maxHoraHasta
-    console.log("3-MINANDMAX", { minHoraDesde, maxHoraHasta })
     let horariosList = buildHorariosList(minHoraDesde, maxHoraHasta, params.duracion, espacios.map(espacio => espacio.id));
-    console.log("4-HORARIOSLIST", horariosList)
 
-    await Promise.all(
-    espacios.forEach(async espacio => {
+    // for (let espacio of espacios) {
+    await Promise.all(espacios.map(async espacio => {
       const reservas = (await admin.firestore().collection('reservas')
         .where("espacio.id", "==", espacio.id)
         .where("año", "==", year)
         .where("mes", "==", month)
         .where("dia", "==", day).get()).docs
 
-      console.log('5-Reservas', reservas)
       
+      horariosList.forEach((horario,index) => {
       reservas.forEach(reservaDoc => {
         const reserva = reservaDoc.data();
-        const fechaInicio = moment(reserva.fechaInicio.toDate(), "HH:mm");
-        const fechaFin = moment(reserva.fechaFin.toDate(), "HH:mm");
-        console.log('7-Reserva', reserva)
-        horariosList.forEach((horario, index) => {
-          console.log('6-Horario', horario)
+        const fechaInicio = moment(reserva.fechaInicio.toDate(), "HH:mm").add(-3, "hours")
+        const fechaFin = moment(reserva.fechaFin.toDate(), "HH:mm").add(-3, "hours")
+        console.log("fehcaInicio", fechaInicio);
+        console.log("fehcaFin", fechaFin);
+        console.log("horario.horaDesde", horario.horaDesde);
+        console.log("horario.horaHasta", horario.horaHasta);
+        console.log("fehcaInicio", fechaInicio.toString());
+        console.log("horario.horaDesde", moment(horario.horaDesde, "HH:mm").toString());
           if (
             (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && fechaFin.isBetween(moment(horario.horaDesde, "HH:mm"), moment(horario.horaHasta, "HH:mm"), "minute", "(]")) ||
-            (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrAfter(fechaFin)) ||
+            (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio, "minute") && moment(horario.horaHasta, "HH:mm").isSameOrAfter(fechaFin, "minute")) ||
             (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin)) ||
             (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin))
             ) {
-              console.log('8-Entro al IF')
-              //sacar id de espacio del horario
               const filteredIds = horario.espacios.filter(id => {
-                console.log('9-IDS', espacio.id, id)
                 return id !== espacio.id
               })
-              console.log('10-IDS FITRADOS', filteredIds)
               
-              horariosList[index].espacios = filteredIds
+              horario.espacios = filteredIds
             }
           })
         })
       })
-      )  
-      console.log('11-RETORNANDO UNA PIJA')
+    )
       return {
         status: "OK",
         message: `Horarios consultados con éxito.`,
@@ -362,4 +360,68 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
   }
 })
 
+
+
+exports.sendNotificationNewReserva = functions.firestore.document('reservas/{reservaId}').onCreate(async (snapshot,context) => {
+  try {
+      const reservaId = context.params.id;
+      const data = snapshot.data()
+
+      const complejoSnap =  await admin.firestore().collection('complejos').doc(data.complejo.id).get()
+      const complejoData = complejoSnap.data()
+      console.log("COMPLEJO DATA", complejoData)
+
+      const usersToNotifyRefs = []
+      complejoData.usuarios.forEach(usuario => {
+        console.log("Usuario:", usuario)
+        if(usuario.id){
+          usersToNotifyRefs.push(admin.firestore().doc(`usuarios/${usuario.id}`))
+        }
+      })
+      console.log("REFS",usersToNotifyRefs)
+  
+      const usersDocs = await admin.firestore().getAll(...usersToNotifyRefs)
+
+      const fcmTokens = []
+       usersDocs.forEach(userDoc => {
+        const data =  userDoc.data()
+        if(data.fcmToken){
+          fcmTokens.push(data.fcmToken)
+        }
+       })
+
+      let message = {
+      notification:{
+        "title": "Alert!",
+        "body": "Este es el body"
+      },
+      data:{
+       "texto": "Hola"
+      },
+      tokens: fcmTokens
+      };
+      
+      admin.messaging().sendMulticast(message)
+        .then((response) => {
+          // Response is a message ID string.
+          console.log('Successfully sent message:', response);
+          return response
+        })
+        .catch((error) => {
+          console.log('Error sending message:', error);
+        });  
+
+    return {
+      status: "OK",
+      message: `Notificacion Enviada con exito`,
+    };
+  } catch (error) {
+    console.log("ERROR", error);
+    return {
+      status: "ERROR",
+      message: `Error al Notificar la reserva`,
+      error: error,
+    };
+  }
+});
 
