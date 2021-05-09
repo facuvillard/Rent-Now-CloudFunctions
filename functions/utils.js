@@ -1,23 +1,31 @@
 var moment = require("moment")
+require('moment/locale/es')
+const admin = require("firebase-admin");
 
-exports.getMinAndMaxHora = (espacios) => {
-  console.log("ESTOY EN GETMINMAXHORA")
-  let minHoraDesde
-  let maxHoraHasta
-  espacios.forEach(espacio => {
-    const horaDesde = espacio.horaDesde;
-    const horaHasta = espacio.horaHasta;
-    if (!minHoraDesde) {
-      minHoraDesde = horaDesde
-    }
-    if (!maxHoraHasta) {
-      maxHoraHasta = horaHasta
-    }
+const capitalize = (string) => {
+  return string.charAt(0).toUpperCase() + string.slice(1);
+}
 
-    if (moment(horaDesde, "HH:mm").isBefore(moment(minHoraDesde, "HH:mm"))) minHoraDesde = horaDesde;
-    if (moment(horaHasta, "HH:mm").isAfter(moment(maxHoraHasta, "HH:mm"))) maxHoraHasta = horaHasta;
-  })
-  return { minHoraDesde, maxHoraHasta }
+exports.getMinAndMaxHora = (complejo, fecha) => {
+  moment.locale('es')
+  let horaDesde
+  let horaHasta
+  const diaReserva = capitalize(moment(fecha, 'DD/MM/YYYY').format('dddd'))
+  const now = moment(admin.firestore.Timestamp.now().toDate()).utcOffset(-180)
+  for (const dia in complejo.horarios) {
+    if (dia === diaReserva && complejo.horarios[dia].abre) {
+      if( moment(fecha, 'DD/MM/YYYY').isSame(now, 'day') ){
+        const diferencia = 30 - (now.minute() % 30);
+        horaDesde = (moment(now.add(diferencia, "minutes").toDate()).utcOffset(-180)).format('LT');
+        horaHasta = complejo.horarios[dia].hasta
+      }
+      else {
+        horaDesde = complejo.horarios[dia].desde
+        horaHasta = complejo.horarios[dia].hasta
+      }
+    }
+  }
+  return { horaDesde, horaHasta }
 }
 
 exports.buildHorariosList = (minHoraDesde, maxHoraHasta, duracion, idsEspacios) => {
@@ -29,7 +37,7 @@ exports.buildHorariosList = (minHoraDesde, maxHoraHasta, duracion, idsEspacios) 
     espacios: idsEspacios
   }];
 
-  while (moment(list[list.length - 1].horaHasta,"HH:mm").isBefore(moment(maxHoraHasta, "HH:mm"))
+  while (moment(list[list.length - 1].horaHasta, "HH:mm").isBefore(moment(maxHoraHasta, "HH:mm"))
     && moment(lastHoraHasta, "HH:mm").add(duracion, "hours").isSameOrBefore(moment(maxHoraHasta, "HH:mm"))) {
     if (index !== 1) {
       list.push({
@@ -44,19 +52,3 @@ exports.buildHorariosList = (minHoraDesde, maxHoraHasta, duracion, idsEspacios) 
   console.log(list)
   return list
 }
-// exports.buildHorariosList("08:00","23:00", 1, ["a","b"])
-
-// const hola = (fechaInicioReserva, fechaFinReserva, horario) => {
-//   const fechaInicio = moment(fechaInicioReserva, "HH:mm");
-//   const fechaFin = moment(fechaFinReserva, "HH:mm");
-//   if (
-//     (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && fechaFin.isBetween(moment(horario.horaDesde, "HH:mm"), moment(horario.horaHasta, "HH:mm"), "minute", "(]")) ||
-//     (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrAfter(fechaFin)) ||
-//     (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin)) ||
-//     (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin))
-//   ) {
-//     console.log('8-Entro al IF')
-//   }
-// }
-
-// hola()

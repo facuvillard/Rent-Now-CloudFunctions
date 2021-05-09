@@ -5,6 +5,8 @@ const moment = require("moment");
 const { getMinAndMaxHora, buildHorariosList } = require("./utils")
 
 
+
+
 // Comandos: 
 //   -Para deployar todas las funciones firebase deploy --only functions
 //   -Para deployar solo una funcion especifica firebase deploy --only "functions:nombreFuncion"
@@ -298,58 +300,57 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
       espacios.push(espacioObj)
     })
 
-    let minMaxHora = {
-      minHoraDesde : "08:00",
-      maxHoraHasta: "23:00"
-    }       //getMinAndMaxHora(espacios);
-    let minHoraDesde = minMaxHora.minHoraDesde
-    let maxHoraHasta = minMaxHora.maxHoraHasta
-    let horariosList = buildHorariosList(minHoraDesde, maxHoraHasta, params.duracion, espacios.map(espacio => espacio.id));
+    let horarios = getMinAndMaxHora(params.complejo, params.fecha);
+    let minHoraDesde = horarios.horaDesde
+    let maxHoraHasta = horarios.horaHasta
+    let horariosList = []
+    if (horarios.horaDesde && horarios.horaHasta) {
+      horariosList = buildHorariosList(minHoraDesde, maxHoraHasta, params.duracion, espacios.map(espacio => espacio.id));
+      await Promise.all(espacios.map(async espacio => {
+        const reservas = (await admin.firestore().collection('reservas')
+          .where("espacio.id", "==", espacio.id)
+          .where("año", "==", year)
+          .where("mes", "==", month)
+          .where("dia", "==", day).get()).docs
 
-    // for (let espacio of espacios) {
-    await Promise.all(espacios.map(async espacio => {
-      const reservas = (await admin.firestore().collection('reservas')
-        .where("espacio.id", "==", espacio.id)
-        .where("año", "==", year)
-        .where("mes", "==", month)
-        .where("dia", "==", day).get()).docs
 
-      
-      horariosList.forEach((horario,index) => {
-      reservas.forEach(reservaDoc => {
-        const reserva = reservaDoc.data();
-        const fechaInicio = moment(reserva.fechaInicio.toDate(), "HH:mm").add(-3, "hours")
-        const fechaFin = moment(reserva.fechaFin.toDate(), "HH:mm").add(-3, "hours")
-        console.log("fehcaInicio", fechaInicio);
-        console.log("fehcaFin", fechaFin);
-        console.log("horario.horaDesde", horario.horaDesde);
-        console.log("horario.horaHasta", horario.horaHasta);
-        console.log("fehcaInicio", fechaInicio.toString());
-        console.log("horario.horaDesde", moment(horario.horaDesde, "HH:mm").toString());
-          if (
-            (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && fechaFin.isBetween(moment(horario.horaDesde, "HH:mm"), moment(horario.horaHasta, "HH:mm"), "minute", "(]")) ||
-            (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio, "minute") && moment(horario.horaHasta, "HH:mm").isSameOrAfter(fechaFin, "minute")) ||
-            (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin)) ||
-            (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin))
+        horariosList.forEach((horario, index) => {
+          reservas.forEach(reservaDoc => {
+            const reserva = reservaDoc.data();
+            const fechaInicio = moment(reserva.fechaInicio.toDate(), "HH:mm").add(-3, "hours")
+            const fechaFin = moment(reserva.fechaFin.toDate(), "HH:mm").add(-3, "hours")
+            console.log("fehcaInicio", fechaInicio);
+            console.log("fehcaFin", fechaFin);
+            console.log("horario.horaDesde", horario.horaDesde);
+            console.log("horario.horaHasta", horario.horaHasta);
+            console.log("fehcaInicio", fechaInicio.toString());
+            console.log("horario.horaDesde", moment(horario.horaDesde, "HH:mm").toString());
+            if (
+              (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && fechaFin.isBetween(moment(horario.horaDesde, "HH:mm"), moment(horario.horaHasta, "HH:mm"), "minute", "(]")) ||
+              (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio, "minute") && moment(horario.horaHasta, "HH:mm").isSameOrAfter(fechaFin, "minute")) ||
+              (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin)) ||
+              (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin))
             ) {
               const filteredIds = horario.espacios.filter(id => {
                 return id !== espacio.id
               })
-              
+
               horario.espacios = filteredIds
             }
           })
         })
       })
-    )
-      return {
-        status: "OK",
-        message: `Horarios consultados con éxito.`,
-        data: {
-          espacios: espacios,
-          horarios: horariosList
-        }
-      };
+      )
+    }
+    console.log(horariosList, espacios)
+    return {
+      status: "OK",
+      message: `Horarios consultados con éxito.`,
+      data: {
+        espacios: espacios,
+        horarios: horariosList
+      }
+    };
   } catch (error) {
     console.log("ERROR", error);
     return {
@@ -362,54 +363,54 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
 
 
 
-exports.sendNotificationNewReserva = functions.firestore.document('reservas/{reservaId}').onCreate(async (snapshot,context) => {
+exports.sendNotificationNewReserva = functions.firestore.document('reservas/{reservaId}').onCreate(async (snapshot, context) => {
   try {
-      const reservaId = context.params.id;
-      const data = snapshot.data()
+    const reservaId = context.params.id;
+    const data = snapshot.data()
 
-      const complejoSnap =  await admin.firestore().collection('complejos').doc(data.complejo.id).get()
-      const complejoData = complejoSnap.data()
-      console.log("COMPLEJO DATA", complejoData)
+    const complejoSnap = await admin.firestore().collection('complejos').doc(data.complejo.id).get()
+    const complejoData = complejoSnap.data()
+    console.log("COMPLEJO DATA", complejoData)
 
-      const usersToNotifyRefs = []
-      complejoData.usuarios.forEach(usuario => {
-        console.log("Usuario:", usuario)
-        if(usuario.id){
-          usersToNotifyRefs.push(admin.firestore().doc(`usuarios/${usuario.id}`))
-        }
-      })
-      console.log("REFS",usersToNotifyRefs)
-  
-      const usersDocs = await admin.firestore().getAll(...usersToNotifyRefs)
+    const usersToNotifyRefs = []
+    complejoData.usuarios.forEach(usuario => {
+      console.log("Usuario:", usuario)
+      if (usuario.id) {
+        usersToNotifyRefs.push(admin.firestore().doc(`usuarios/${usuario.id}`))
+      }
+    })
+    console.log("REFS", usersToNotifyRefs)
 
-      const fcmTokens = []
-       usersDocs.forEach(userDoc => {
-        const data =  userDoc.data()
-        if(data.fcmToken){
-          fcmTokens.push(data.fcmToken)
-        }
-       })
+    const usersDocs = await admin.firestore().getAll(...usersToNotifyRefs)
 
-      let message = {
-      notification:{
+    const fcmTokens = []
+    usersDocs.forEach(userDoc => {
+      const data = userDoc.data()
+      if (data.fcmToken) {
+        fcmTokens.push(data.fcmToken)
+      }
+    })
+
+    let message = {
+      notification: {
         "title": "Alert!",
         "body": "Este es el body"
       },
-      data:{
-       "texto": "Hola"
+      data: {
+        "texto": "Hola"
       },
       tokens: fcmTokens
-      };
-      
-      admin.messaging().sendMulticast(message)
-        .then((response) => {
-          // Response is a message ID string.
-          console.log('Successfully sent message:', response);
-          return response
-        })
-        .catch((error) => {
-          console.log('Error sending message:', error);
-        });  
+    };
+
+    admin.messaging().sendMulticast(message)
+      .then((response) => {
+        // Response is a message ID string.
+        console.log('Successfully sent message:', response);
+        return response
+      })
+      .catch((error) => {
+        console.log('Error sending message:', error);
+      });
 
     return {
       status: "OK",
