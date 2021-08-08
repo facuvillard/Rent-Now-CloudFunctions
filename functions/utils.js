@@ -12,6 +12,7 @@ exports.getMinAndMaxHora = (complejo, fecha) => {
   let horaHasta
   const diaReserva = capitalize(moment(fecha, 'DD/MM/YYYY').format('dddd'))
   const now = moment(admin.firestore.Timestamp.now().toDate()).utcOffset(-180)
+  console.log(now)
   for (const dia in complejo.horarios) {
     if (dia === diaReserva && complejo.horarios[dia].abre) {
       if( moment(fecha, 'DD/MM/YYYY').isSame(now, 'day') ){
@@ -51,4 +52,26 @@ exports.buildHorariosList = (minHoraDesde, maxHoraHasta, duracion, idsEspacios) 
   }
   console.log(list)
   return list
+}
+
+exports.getFranjaHoraria = (hora) => {
+  
+  if(hora >= 5 && hora < 13) {
+    return 'Mañana'
+ 
+  } 
+  if(hora >= 13 && hora < 16){
+    return 'Siesta'
+   
+  } 
+  if(hora >= 16 && hora < 19){
+   return 'Tarde'
+    
+  } 
+  if(hora >= 19 && hora < 24){
+    return 'Noche'
+    
+  }
+
+  return 'Fuera de franja'
 }
