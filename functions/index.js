@@ -362,12 +362,13 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
 
 
 
-exports.sendNotificationNewReserva = functions.firestore.document('reservas/{reservaId}').onCreate(async (snapshot,context) => {
+exports.registerNotificationNewReserva = functions.firestore.document('reservas/{reservaId}').onCreate(async (snapshot,context) => {
   try {
-      const reservaId = context.params.id;
+      const reservaId = context.params.reservaId;
       const data = snapshot.data()
+      const complejoId = data.complejo.id
 
-      const complejoSnap =  await admin.firestore().collection('complejos').doc(data.complejo.id).get()
+      const complejoSnap =  await admin.firestore().collection('complejos').doc(complejoId).get()
       const complejoData = complejoSnap.data()
       console.log("COMPLEJO DATA", complejoData)
 
@@ -375,41 +376,28 @@ exports.sendNotificationNewReserva = functions.firestore.document('reservas/{res
       complejoData.usuarios.forEach(usuario => {
         console.log("Usuario:", usuario)
         if(usuario.id){
-          usersToNotifyRefs.push(admin.firestore().doc(`usuarios/${usuario.id}`))
+          usersToNotifyRefs.push(admin.firestore().collection(`usuarios/${usuario.id}/notificaciones`).doc(reservaId))
         }
       })
       console.log("REFS",usersToNotifyRefs)
-  
-      const usersDocs = await admin.firestore().getAll(...usersToNotifyRefs)
 
-      const fcmTokens = []
-       usersDocs.forEach(userDoc => {
-        const data =  userDoc.data()
-        if(data.fcmToken){
-          fcmTokens.push(data.fcmToken)
+      usersToNotifyRefs.forEach( async userRef => {
+        let notification = { 
+          idReserva: reservaId ,
+          tipo: "NUEVA RESERVA",
+          mensaje: "Nueva reserva",
+          espacio: data.espacio.descripcion,
+          fechaInicio: data.fechaInicio.toString(),
+          fechaFin: data.fechaFin.toString(),
+          leida: false,
+          complejo: {
+            id: complejoId,
+            nombre: complejoData.nombre
+          }
         }
-       })
 
-      let message = {
-      notification:{
-        "title": "Alert!",
-        "body": "Este es el body"
-      },
-      data:{
-       "texto": "Hola"
-      },
-      tokens: fcmTokens
-      };
-      
-      admin.messaging().sendMulticast(message)
-        .then((response) => {
-          // Response is a message ID string.
-          console.log('Successfully sent message:', response);
-          return response
-        })
-        .catch((error) => {
-          console.log('Error sending message:', error);
-        });  
+       await userRef.set(notification)
+      }) 
 
     return {
       status: "OK",
@@ -425,3 +413,53 @@ exports.sendNotificationNewReserva = functions.firestore.document('reservas/{res
   }
 });
 
+
+exports.registerNotificationReservaTerminada = functions.firestore.document('reservas/{reservaId}').onUpdate(async (change,context) => {
+  try {
+      const reservaId = context.params.reservaId;
+      const afterData = change.after.data();
+      const beforeData = change.before.data();
+      const complejoId = data.complejo.id
+
+      if(!afterData.reservaApp){
+        return;
+      }
+
+      if(afterData.estados[-1].estado !== 'FINALIZADA' || beforeData.estados[-1].estado === 'FINALIZADA'){
+        return
+      }
+
+      const complejoSnap =  await admin.firestore().collection('complejos').doc(complejoId).get()
+      const complejoData = complejoSnap.data()
+
+      const userToNotifyRef = admin.firestore().collection(`usuariosApp/${usuario.id}/notificaciones`).doc(reservaId)
+
+      const notification = { 
+          idReserva: reservaId ,
+          tipo: 'CAMBIO ESTADO - FINALIZADA',
+          mensaje: "Su reserva se concretó con éxito. Desea valorar el complejo ? ",
+          espacio: afterData.espacio.descripcion,
+          fechaInicio: afterData.fechaInicio.toString(),
+          fechaFin: afterData.fechaFin.toString(),
+          leida: false,
+          complejo: {
+            id: complejoId,
+            nombre: complejoData.nombre
+          }
+        }
+
+       await userToNotifyRef.set(notification)
+
+    return {
+      status: "OK",
+      message: `Notificacion Enviada con exito`,
+    };
+  } catch (error) {
+    console.log("ERROR", error);
+    return {
+      status: "ERROR",
+      message: `Error al Notificar la reserva`,
+      error: error,
+    };
+  }
+});
