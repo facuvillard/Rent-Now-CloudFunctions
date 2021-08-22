@@ -2,7 +2,9 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 const moment = require("moment");
-const { getMinAndMaxHora, buildHorariosList } = require("./utils")
+const { getMinAndMaxHora, buildHorariosList, getFranjaHoraria } = require("./utils")
+
+
 
 
 // Comandos: 
@@ -298,58 +300,52 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
       espacios.push(espacioObj)
     })
 
-    let minMaxHora = {
-      minHoraDesde : "08:00",
-      maxHoraHasta: "23:00"
-    }       //getMinAndMaxHora(espacios);
-    let minHoraDesde = minMaxHora.minHoraDesde
-    let maxHoraHasta = minMaxHora.maxHoraHasta
-    let horariosList = buildHorariosList(minHoraDesde, maxHoraHasta, params.duracion, espacios.map(espacio => espacio.id));
+    let horarios = getMinAndMaxHora(params.complejo, params.fecha);
+    let minHoraDesde = horarios.horaDesde
+    let maxHoraHasta = horarios.horaHasta
+    let horariosList = []
+    if (horarios.horaDesde && horarios.horaHasta) {
+      horariosList = buildHorariosList(minHoraDesde, maxHoraHasta, params.duracion, espacios.map(espacio => espacio.id));
+      await Promise.all(espacios.map(async espacio => {
+        const reservas = (await admin.firestore().collection('reservas')
+          .where("espacio.id", "==", espacio.id)
+          .where("año", "==", year)
+          .where("mes", "==", month)
+          .where("dia", "==", day).get()).docs
 
-    // for (let espacio of espacios) {
-    await Promise.all(espacios.map(async espacio => {
-      const reservas = (await admin.firestore().collection('reservas')
-        .where("espacio.id", "==", espacio.id)
-        .where("año", "==", year)
-        .where("mes", "==", month)
-        .where("dia", "==", day).get()).docs
 
-      
-      horariosList.forEach((horario,index) => {
-      reservas.forEach(reservaDoc => {
-        const reserva = reservaDoc.data();
-        const fechaInicio = moment(reserva.fechaInicio.toDate(), "HH:mm").add(-3, "hours")
-        const fechaFin = moment(reserva.fechaFin.toDate(), "HH:mm").add(-3, "hours")
-        console.log("fehcaInicio", fechaInicio);
-        console.log("fehcaFin", fechaFin);
-        console.log("horario.horaDesde", horario.horaDesde);
-        console.log("horario.horaHasta", horario.horaHasta);
-        console.log("fehcaInicio", fechaInicio.toString());
-        console.log("horario.horaDesde", moment(horario.horaDesde, "HH:mm").toString());
-          if (
-            (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && fechaFin.isBetween(moment(horario.horaDesde, "HH:mm"), moment(horario.horaHasta, "HH:mm"), "minute", "(]")) ||
-            (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio, "minute") && moment(horario.horaHasta, "HH:mm").isSameOrAfter(fechaFin, "minute")) ||
-            (moment(horario.horaDesde, "HH:mm").isSameOrBefore(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin)) ||
-            (moment(horario.horaDesde, "HH:mm").isSameOrAfter(fechaInicio) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(fechaFin))
+        horariosList.forEach((horario, index) => {
+          reservas.forEach(reservaDoc => {
+            const reserva = reservaDoc.data();
+            const fechaInicio = moment(reserva.fechaInicio.toDate(), "HH:mm").add(-3, "hours")
+            const fechaFin = moment(reserva.fechaFin.toDate(), "HH:mm").add(-3, "hours")
+            if (
+              (moment(horario.horaDesde, "HH:mm").isSameOrAfter(moment(fechaInicio,"HH:mm")) && moment(fechaFin,"HH:mm").isBetween(moment(horario.horaDesde, "HH:mm"), moment(horario.horaHasta, "HH:mm"), "minute", "(]")) ||
+              (moment(horario.horaDesde, "HH:mm").isSameOrBefore(moment(fechaInicio,"HH:mm"), "minute") && moment(horario.horaHasta, "HH:mm").isSameOrAfter(moment(fechaFin,"HH:mm"), "minute")) ||
+              (moment(horario.horaDesde, "HH:mm").isSameOrBefore(moment(fechaInicio,"HH:mm")) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(moment(fechaFin,"HH:mm"))) ||
+              (moment(horario.horaDesde, "HH:mm").isSameOrAfter(moment(fechaInicio,"HH:mm")) && moment(horario.horaHasta, "HH:mm").isSameOrBefore(moment(fechaFin,"HH:mm")))
             ) {
+              console.log( moment(fechaInicio,"HH:mm"), moment(fechaFin,"HH:mm"), horario.horaDesde, horario.horaHasta)
               const filteredIds = horario.espacios.filter(id => {
                 return id !== espacio.id
               })
-              
+
               horario.espacios = filteredIds
             }
           })
         })
       })
-    )
-      return {
-        status: "OK",
-        message: `Horarios consultados con éxito.`,
-        data: {
-          espacios: espacios,
-          horarios: horariosList
-        }
-      };
+      )
+    }
+    console.log(horariosList, espacios)
+    return {
+      status: "OK",
+      message: `Horarios consultados con éxito.`,
+      data: {
+        espacios: espacios,
+        horarios: horariosList
+      }
+    };
   } catch (error) {
     console.log("ERROR", error);
     return {
@@ -359,8 +355,6 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
     };
   }
 })
-
-
 
 exports.registerNotificationNewReserva = functions.firestore.document('reservas/{reservaId}').onCreate(async (snapshot,context) => {
   try {
@@ -399,20 +393,115 @@ exports.registerNotificationNewReserva = functions.firestore.document('reservas/
        await userRef.set(notification)
       }) 
 
+      return {
+        status: "OK",
+        message: `Notificacion Enviada con exito`,
+      };
+    } catch (error) {
+      console.log("ERROR", error);
+      return {
+        status: "ERROR",
+        message: `Error al Notificar la reserva`,
+        error: error,
+      };
+    }
+  });
+
+exports.createReservaApp = functions.https.onCall(async (params) => {
+  const capitalize = (string) => {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+  }
+  try {
+    const dia = moment(params.fechaInicio).date();
+    const mes = moment(params.fechaInicio).month();
+    const año = moment(params.fechaInicio).year();
+    console.log( dia, mes, año)
+    const semana = moment(params.fechaInicio).week();
+    const diaString = capitalize(moment(params.fechaInicio).format('dddd'))
+    const hora = moment(params.fechaInicio).hour()
+    const franjaHoraria = getFranjaHoraria(hora)
+    const fechaRegistro = admin.firestore.Timestamp.now();
+
+    const fechaInicioToSave = moment(params.fechaInicio).toDate()
+    const fechaFinToSave = moment(params.fechaFin).toDate()
+
+    const reservaToSave = {
+      fechaInicio: admin.firestore.Timestamp.fromDate(fechaInicioToSave),
+      fechaFin: admin.firestore.Timestamp.fromDate(fechaFinToSave),
+      dia: dia,
+      mes: mes,
+      año: año,
+      semana: semana,
+      diaString: diaString,
+      hora: hora,
+      franjaHoraria: franjaHoraria,
+      fechaRegistro: fechaRegistro,
+      cliente: params.cliente,
+      espacio: params.espacio,
+      complejo: params.complejo,
+      estaPagado: false,
+      estados: [{
+        estado: "CREADA",
+        fecha: admin.firestore.Timestamp.now(),
+        motivo: "",
+      }],
+      monto: params.monto,
+      esFijo: false,
+      reservaApp: true,
+    }
+
+    console.log('Reserva recibida: ', params)
+
+    const reservas = (await admin.firestore().collection('reservas')
+      .where("espacio.id", "==", params.espacio.id)
+      .where("año", "==", año)
+      .where("mes", "==", mes)
+      .where("dia", "==", dia).get()).docs
+
+    let horarioDisponible = true
+
+    console.log('Las reservas son: ', reservas)
+
+    if(reservas.length !== 0){
+      console.log('entro al if de reservas')
+      reservas.forEach(reservaDoc => {
+        const reserva = reservaDoc.data();
+        console.log('Reserva: ', reserva)
+        const fechaInicio = moment(reserva.fechaInicio.toDate(), "HH:mm").add(-3, "hours")
+        const fechaFin = moment(reserva.fechaFin.toDate(), "HH:mm").add(-3, "hours")
+        if (
+          ((moment(fechaInicioToSave).format('HH:mm')).isSameOrAfter(fechaInicio) && fechaFin.isBetween(moment(fechaInicioToSave).format('HH:mm'), moment(fechaFinToSave).format('HH:mm'), "minute", "(]")) ||
+          ((moment(fechaInicioToSave).format('HH:mm')).isSameOrBefore(fechaInicio, "minute") && (moment(fechaFinToSave).format('HH:mm')).isSameOrAfter(fechaFin, "minute")) ||
+          ((moment(fechaInicioToSave).format('HH:mm')).isSameOrBefore(fechaInicio) && (moment(fechaFinToSave).format('HH:mm')).isSameOrBefore(fechaFin)) ||
+          ((moment(fechaInicioToSave).format('HH:mm')).isSameOrAfter(fechaInicio) && (moment(fechaFinToSave).format('HH:mm')).isSameOrBefore(fechaFin))
+        ) {
+          console.log('entro al False')
+          horarioDisponible = false
+        }
+      })
+    }
+
+    if (horarioDisponible) {
+      // Registrar Reserva
+      console.log('entro al true')
+      await admin.firestore().collection('reservas').add(reservaToSave)
+    }
     return {
       status: "OK",
-      message: `Notificacion Enviada con exito`,
+      message: `La reserva ha sido validada con exito.`,
+      data: {
+        horarioDisponible: horarioDisponible
+      }
     };
   } catch (error) {
     console.log("ERROR", error);
     return {
       status: "ERROR",
-      message: `Error al Notificar la reserva`,
+      message: "Error al validar la reserva",
       error: error,
     };
   }
-});
-
+})
 
 exports.registerNotificationReservaTerminada = functions.firestore.document('reservas/{reservaId}').onUpdate(async (change,context) => {
   try {
