@@ -508,7 +508,7 @@ exports.registerNotificationReservaTerminada = functions.firestore.document('res
       const reservaId = context.params.reservaId;
       const afterData = change.after.data();
       const beforeData = change.before.data();
-      const complejoId = data.complejo.id
+      const complejoId = afterData.complejo.id
 
       if(!afterData.reservaApp){
         return;
