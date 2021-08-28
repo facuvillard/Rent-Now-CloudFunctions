@@ -250,6 +250,7 @@ exports.createDocForNewUser = functions.https.onCall(async (extraData) => {
         apellido: extraData.apellido,
         email: extraData.email,
         habilitado: true,
+        celular: extraData.celular,
         ciudad: extraData.ciudad,
         provincia: extraData.provincia
       });
