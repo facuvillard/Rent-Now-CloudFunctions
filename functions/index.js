@@ -515,14 +515,19 @@ exports.registerNotificationReservaTerminada = functions.firestore.document('res
         return;
       }
 
-      if(afterData.estados[-1].estado !== 'FINALIZADA' || beforeData.estados[-1].estado === 'FINALIZADA'){
+      const afterLastEstado = afterData.estados[afterData.estados.length - 1]
+      const beforeLastEstado = beforeData.estados[beforeData.estados.length - 1]
+      console.log('after', afterLastEstado);
+      console.log('before', beforeLastEstado);
+
+      if(afterLastEstado.estado !== 'FINALIZADA' || beforeLastEstado.estado === 'FINALIZADA'){
         return
       }
 
       const complejoSnap =  await admin.firestore().collection('complejos').doc(complejoId).get()
       const complejoData = complejoSnap.data()
 
-      const userToNotifyRef = admin.firestore().collection(`usuariosApp/${usuario.id}/notificaciones`).doc(reservaId)
+      const userToNotifyRef = admin.firestore().collection(`usuariosApp/${afterData.cliente.id}/notificaciones`).doc(reservaId)
 
       const notification = { 
           idReserva: reservaId ,
@@ -539,7 +544,7 @@ exports.registerNotificationReservaTerminada = functions.firestore.document('res
         }
 
        await userToNotifyRef.set(notification)
-
+    console.log("Reserva terminada notificada con exito");
     return {
       status: "OK",
       message: `Notificacion Enviada con exito`,
