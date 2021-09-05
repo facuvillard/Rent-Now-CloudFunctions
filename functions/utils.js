@@ -50,7 +50,6 @@ exports.buildHorariosList = (minHoraDesde, maxHoraHasta, duracion, idsEspacios) 
     }
     index++;
   }
-  console.log(list)
   return list
 }
 
@@ -74,4 +73,26 @@ exports.getFranjaHoraria = (hora) => {
   }
 
   return 'Fuera de franja'
+}
+
+exports.isFreeHorario = (horaInicioHorario, horaInicioReserva, horaFinReserva, horaFinHorario) => {
+
+  const horaInicioHorarioMoment = moment(horaInicioHorario, 'HH:mm')
+  const horaFinHorarioMoment = moment(horaFinHorario, 'HH:mm')
+  const horaInicioReservaMoment = moment(horaInicioReserva, 'HH:mm')
+  const horaFinReservaMoment = moment(horaFinReserva, 'HH:mm')
+  if(horaInicioHorarioMoment.isSameOrAfter(horaInicioReservaMoment) && horaFinReservaMoment.isBetween(horaInicioHorarioMoment, horaFinHorarioMoment, "minute", "(]")) {
+   return false
+ }
+ if(horaInicioHorarioMoment.isBefore(horaInicioReservaMoment, "minute") && horaFinHorarioMoment.isAfter(horaFinReservaMoment, "minute")){ 
+   return false
+ }
+ if (horaInicioHorarioMoment.isSameOrBefore(horaInicioReservaMoment) && horaFinHorarioMoment.isBefore(horaFinReservaMoment) && horaInicioReservaMoment.isBefore(horaFinHorarioMoment)){
+   return false
+ }
+ if(horaInicioHorarioMoment.isSameOrAfter(horaInicioReservaMoment) && horaFinHorarioMoment.isSameOrBefore(horaFinReservaMoment)){
+   return false
+ }
+
+ return true
 }
