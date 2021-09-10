@@ -2,7 +2,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 const moment = require("moment");
-const { getMinAndMaxHora, buildHorariosList, getFranjaHoraria } = require("./utils")
+const { getMinAndMaxHora, buildHorariosList, getFranjaHoraria, isFreeHorario } = require("./utils")
 
 
 
@@ -302,10 +302,10 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
     })
 
     let horarios = getMinAndMaxHora(params.complejo, params.fecha);
-    let minHoraDesde = horarios.horaDesde
-    let maxHoraHasta = horarios.horaHasta
     let horariosList = []
     if (horarios.horaDesde && horarios.horaHasta) {
+      let minHoraDesde = horarios.horaDesde
+      let maxHoraHasta = horarios.horaHasta
       horariosList = buildHorariosList(minHoraDesde, maxHoraHasta, params.duracion, espacios.map(espacio => espacio.id));
       await Promise.all(espacios.map(async espacio => {
         const reservas = (await admin.firestore().collection('reservas')

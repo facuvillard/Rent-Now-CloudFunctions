@@ -8,17 +8,20 @@ const capitalize = (string) => {
 
 exports.getMinAndMaxHora = (complejo, fecha) => {
   moment.locale('es')
-  let horaDesde
-  let horaHasta
+  let horaDesde = null
+  let horaHasta = null
   const diaReserva = capitalize(moment(fecha, 'DD/MM/YYYY').format('dddd'))
   const now = moment(admin.firestore.Timestamp.now().toDate()).utcOffset(-180)
-  console.log(now)
+  const nowMoment = moment()
+  console.log(nowMoment)
   for (const dia in complejo.horarios) {
     if (dia === diaReserva && complejo.horarios[dia].abre) {
-      if( moment(fecha, 'DD/MM/YYYY').isSame(now, 'day') ){
-        const diferencia = 30 - (now.minute() % 30);
-        horaDesde = (moment(now.add(diferencia, "minutes").toDate()).utcOffset(-180)).format('LT');
-        horaHasta = complejo.horarios[dia].hasta
+      if (moment(fecha, 'DD/MM/YYYY').isSame(now, 'day')) {
+        if (moment(complejo.horarios[dia].desde).isBefore(now)) {
+          const diferencia = 180 - (now.minute() % 30);
+          horaDesde = (moment(now.add(diferencia, "minutes").toDate()).utcOffset(-180)).format('LT');
+          horaHasta = complejo.horarios[dia].hasta
+        }
       }
       else {
         horaDesde = complejo.horarios[dia].desde
@@ -54,22 +57,22 @@ exports.buildHorariosList = (minHoraDesde, maxHoraHasta, duracion, idsEspacios) 
 }
 
 exports.getFranjaHoraria = (hora) => {
-  
-  if(hora >= 5 && hora < 13) {
+
+  if (hora >= 5 && hora < 13) {
     return 'Mañana'
- 
-  } 
-  if(hora >= 13 && hora < 16){
+
+  }
+  if (hora >= 13 && hora < 16) {
     return 'Siesta'
-   
-  } 
-  if(hora >= 16 && hora < 19){
-   return 'Tarde'
-    
-  } 
-  if(hora >= 19 && hora < 24){
+
+  }
+  if (hora >= 16 && hora < 19) {
+    return 'Tarde'
+
+  }
+  if (hora >= 19 && hora < 24) {
     return 'Noche'
-    
+
   }
 
   return 'Fuera de franja'
@@ -81,18 +84,18 @@ exports.isFreeHorario = (horaInicioHorario, horaInicioReserva, horaFinReserva, h
   const horaFinHorarioMoment = moment(horaFinHorario, 'HH:mm')
   const horaInicioReservaMoment = moment(horaInicioReserva, 'HH:mm')
   const horaFinReservaMoment = moment(horaFinReserva, 'HH:mm')
-  if(horaInicioHorarioMoment.isSameOrAfter(horaInicioReservaMoment) && horaFinReservaMoment.isBetween(horaInicioHorarioMoment, horaFinHorarioMoment, "minute", "(]")) {
-   return false
- }
- if(horaInicioHorarioMoment.isBefore(horaInicioReservaMoment, "minute") && horaFinHorarioMoment.isAfter(horaFinReservaMoment, "minute")){ 
-   return false
- }
- if (horaInicioHorarioMoment.isSameOrBefore(horaInicioReservaMoment) && horaFinHorarioMoment.isBefore(horaFinReservaMoment) && horaInicioReservaMoment.isBefore(horaFinHorarioMoment)){
-   return false
- }
- if(horaInicioHorarioMoment.isSameOrAfter(horaInicioReservaMoment) && horaFinHorarioMoment.isSameOrBefore(horaFinReservaMoment)){
-   return false
- }
+  if (horaInicioHorarioMoment.isSameOrAfter(horaInicioReservaMoment) && horaFinReservaMoment.isBetween(horaInicioHorarioMoment, horaFinHorarioMoment, "minute", "(]")) {
+    return false
+  }
+  if (horaInicioHorarioMoment.isBefore(horaInicioReservaMoment, "minute") && horaFinHorarioMoment.isAfter(horaFinReservaMoment, "minute")) {
+    return false
+  }
+  if (horaInicioHorarioMoment.isSameOrBefore(horaInicioReservaMoment) && horaFinHorarioMoment.isBefore(horaFinReservaMoment) && horaInicioReservaMoment.isBefore(horaFinHorarioMoment)) {
+    return false
+  }
+  if (horaInicioHorarioMoment.isSameOrAfter(horaInicioReservaMoment) && horaFinHorarioMoment.isSameOrBefore(horaFinReservaMoment)) {
+    return false
+  }
 
- return true
+  return true
 }
