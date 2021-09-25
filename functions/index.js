@@ -378,10 +378,11 @@ exports.registerNotificationNewReserva = functions.firestore.document('reservas/
     const reservaId = context.params.reservaId;
     const data = snapshot.data()
     const complejoId = data.complejo.id
+    console.log('Fecha  Inicio: ', moment(data.fechaInicio).toDate())
 
     const complejoSnap = await admin.firestore().collection('complejos').doc(complejoId).get()
     const complejoData = complejoSnap.data()
-    console.log("COMPLEJO DATA", complejoData)
+    // console.log("COMPLEJO DATA", complejoData)
 
     const usersToNotifyRefs = []
     complejoData.usuarios.forEach(usuario => {
@@ -390,7 +391,7 @@ exports.registerNotificationNewReserva = functions.firestore.document('reservas/
         usersToNotifyRefs.push(admin.firestore().collection(`usuarios/${usuario.id}/notificaciones`).doc(reservaId))
       }
     })
-    console.log("REFS", usersToNotifyRefs)
+    // console.log("REFS", usersToNotifyRefs)
 
     usersToNotifyRefs.forEach(async userRef => {
       let notification = {
@@ -398,15 +399,15 @@ exports.registerNotificationNewReserva = functions.firestore.document('reservas/
         tipo: "NUEVA RESERVA",
         mensaje: "Nueva reserva",
         espacio: data.espacio.descripcion,
-        fechaInicio: data.fechaInicio.toString(),
-        fechaFin: data.fechaFin.toString(),
+        fechaInicio: admin.firestore.Timestamp.fromDate(moment(data.fechaInicio).toDate()),
+        fechaFin: admin.firestore.Timestamp.fromDate(moment(data.fechaFin).toDate()),
         leida: false,
         complejo: {
           id: complejoId,
           nombre: complejoData.nombre
         }
       }
-
+      console.log('Notificacion: ', notification)
       await userRef.set(notification)
     })
 
