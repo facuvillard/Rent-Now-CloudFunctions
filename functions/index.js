@@ -150,8 +150,9 @@ exports.updateReservasState = functions.pubsub
       let changed = false
       const reserva = snapshot.data()
       console.log("RESERVA", reserva)
-      const estadoActual = reserva.estados[reserva.estados.length - 1]
+      let estadoActual = reserva.estados[reserva.estados.length - 1]
       const estados = reserva.estados
+
 
       const fechaInicioReserva = moment(reserva.fechaInicio.toDate()).utcOffset(-180)
       const fechaFinReserva = moment(reserva.fechaFin.toDate()).utcOffset(-180)
@@ -169,6 +170,7 @@ exports.updateReservasState = functions.pubsub
               fecha: admin.firestore.Timestamp.now(),
               motivo: ''
             })
+            estadoActual = 'EN HORARIO'
             changed = true
           }
           break
@@ -181,6 +183,7 @@ exports.updateReservasState = functions.pubsub
               fecha: admin.firestore.Timestamp.now(),
               motivo: ''
             })
+            estadoActual = 'FINALIZADA'
             changed = true
           }
           break
@@ -193,17 +196,30 @@ exports.updateReservasState = functions.pubsub
               fecha: admin.firestore.Timestamp.now(),
               motivo: "La reserva nunca se pasó a EN CURSO."
             })
+            estadoActual = 'FINALIZADA'
             changed = true
           }
           break
-
+        case "CREADA":
+          console.log("ENTRO A CREADA")
+          if (now.isBetween(fechaInicioReserva, fechaInicioReserva.add(-1, "hours"), 'minute', '[]')) {
+            console.log("SE CAMBIO A CANCELADA")
+            estados.push({
+              estado: 'CANCELADA',
+              fecha: admin.firestore.Timestamp.now(),
+              motivo: "La reserva nunca fue confirmada por el Complejo."
+            })
+            estadoActual = 'CANCELADA'
+            changed = true
+          }
+          break
         default:
           break
       }
 
       if (changed) {
         console.log("SE EJECUTO UPDATE")
-        snapshot.ref.update({ estados })
+        snapshot.ref.update({ estados, estadoActual })
       }
 
     })
@@ -353,56 +369,58 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
   }
 })
 
-exports.registerNotificationNewReserva = functions.firestore.document('reservas/{reservaId}').onCreate(async (snapshot,context) => {
+exports.registerNotificationNewReserva = functions.firestore.document('reservas/{reservaId}').onCreate(async (snapshot, context) => {
   try {
-      const reservaId = context.params.reservaId;
-      const data = snapshot.data()
-      const complejoId = data.complejo.id
+    const reservaId = context.params.reservaId;
+    const data = snapshot.data()
+    const complejoId = data.complejo.id
+    const fechaInicio = moment(data.fechaInicio.toDate())
+    const fechaFin = moment(data.fechaFin.toDate())
 
-      const complejoSnap =  await admin.firestore().collection('complejos').doc(complejoId).get()
-      const complejoData = complejoSnap.data()
-      console.log("COMPLEJO DATA", complejoData)
+    const complejoSnap = await admin.firestore().collection('complejos').doc(complejoId).get()
+    const complejoData = complejoSnap.data()
+    // console.log("COMPLEJO DATA", complejoData)
 
-      const usersToNotifyRefs = []
-      complejoData.usuarios.forEach(usuario => {
-        console.log("Usuario:", usuario)
-        if(usuario.id){
-          usersToNotifyRefs.push(admin.firestore().collection(`usuarios/${usuario.id}/notificaciones`).doc(reservaId))
+    const usersToNotifyRefs = []
+    complejoData.usuarios.forEach(usuario => {
+      console.log("Usuario:", usuario)
+      if (usuario.id) {
+        usersToNotifyRefs.push(admin.firestore().collection(`usuarios/${usuario.id}/notificaciones`).doc(reservaId))
+      }
+    })
+    // console.log("REFS", usersToNotifyRefs)
+
+    usersToNotifyRefs.forEach(async userRef => {
+      let notification = {
+        idReserva: reservaId,
+        tipo: "NUEVA RESERVA",
+        mensaje: "Nueva reserva",
+        espacio: data.espacio.descripcion,
+        fechaInicio: admin.firestore.Timestamp.fromDate(fechaInicio.toDate()),
+        fechaFin: admin.firestore.Timestamp.fromDate(fechaFin.toDate()),
+        leida: false,
+        complejo: {
+          id: complejoId,
+          nombre: complejoData.nombre
         }
-      })
-      console.log("REFS",usersToNotifyRefs)
+      }
+      console.log('Notificacion: ', notification)
+      await userRef.set(notification)
+    })
 
-      usersToNotifyRefs.forEach( async userRef => {
-        let notification = { 
-          idReserva: reservaId ,
-          tipo: "NUEVA RESERVA",
-          mensaje: "Nueva reserva",
-          espacio: data.espacio.descripcion,
-          fechaInicio: data.fechaInicio.toString(),
-          fechaFin: data.fechaFin.toString(),
-          leida: false,
-          complejo: {
-            id: complejoId,
-            nombre: complejoData.nombre
-          }
-        }
-
-       await userRef.set(notification)
-      }) 
-
-      return {
-        status: "OK",
-        message: `Notificacion Enviada con exito`,
-      };
-    } catch (error) {
-      console.log("ERROR", error);
-      return {
-        status: "ERROR",
-        message: `Error al Notificar la reserva`,
-        error: error,
-      };
-    }
-  });
+    return {
+      status: "OK",
+      message: `Notificacion Enviada con exito`,
+    };
+  } catch (error) {
+    console.log("ERROR", error);
+    return {
+      status: "ERROR",
+      message: `Error al Notificar la reserva`,
+      error: error,
+    };
+  }
+});
 
   exports.createReservaApp = functions.https.onCall(async (params) => {
     const capitalize = (string) => {
@@ -500,41 +518,41 @@ exports.registerNotificationNewReserva = functions.firestore.document('reservas/
     }
   })
 
-exports.registerNotificationReservaTerminada = functions.firestore.document('reservas/{reservaId}').onUpdate(async (change,context) => {
+exports.registerNotificationReservaTerminada = functions.firestore.document('reservas/{reservaId}').onUpdate(async (change, context) => {
   try {
-      const reservaId = context.params.reservaId;
-      const afterData = change.after.data();
-      const beforeData = change.before.data();
-      const complejoId = data.complejo.id
+    const reservaId = context.params.reservaId;
+    const afterData = change.after.data();
+    const beforeData = change.before.data();
+    const complejoId = data.complejo.id
 
-      if(!afterData.reservaApp){
-        return;
+    if (!afterData.reservaApp) {
+      return;
+    }
+
+    if (afterData.estados[-1].estado !== 'FINALIZADA' || beforeData.estados[-1].estado === 'FINALIZADA') {
+      return
+    }
+
+    const complejoSnap = await admin.firestore().collection('complejos').doc(complejoId).get()
+    const complejoData = complejoSnap.data()
+
+    const userToNotifyRef = admin.firestore().collection(`usuariosApp/${usuario.id}/notificaciones`).doc(reservaId)
+
+    const notification = {
+      idReserva: reservaId,
+      tipo: 'CAMBIO ESTADO - FINALIZADA',
+      mensaje: "Su reserva se concretó con éxito. Desea valorar el complejo ? ",
+      espacio: afterData.espacio.descripcion,
+      fechaInicio: afterData.fechaInicio.toString(),
+      fechaFin: afterData.fechaFin.toString(),
+      leida: false,
+      complejo: {
+        id: complejoId,
+        nombre: complejoData.nombre
       }
+    }
 
-      if(afterData.estados[-1].estado !== 'FINALIZADA' || beforeData.estados[-1].estado === 'FINALIZADA'){
-        return
-      }
-
-      const complejoSnap =  await admin.firestore().collection('complejos').doc(complejoId).get()
-      const complejoData = complejoSnap.data()
-
-      const userToNotifyRef = admin.firestore().collection(`usuariosApp/${usuario.id}/notificaciones`).doc(reservaId)
-
-      const notification = { 
-          idReserva: reservaId ,
-          tipo: 'CAMBIO ESTADO - FINALIZADA',
-          mensaje: "Su reserva se concretó con éxito. Desea valorar el complejo ? ",
-          espacio: afterData.espacio.descripcion,
-          fechaInicio: afterData.fechaInicio.toString(),
-          fechaFin: afterData.fechaFin.toString(),
-          leida: false,
-          complejo: {
-            id: complejoId,
-            nombre: complejoData.nombre
-          }
-        }
-
-       await userToNotifyRef.set(notification)
+    await userToNotifyRef.set(notification)
 
     return {
       status: "OK",
@@ -549,3 +567,39 @@ exports.registerNotificationReservaTerminada = functions.firestore.document('res
     };
   }
 });
+
+exports.updateReservasStateWhenStateIsCreate = functions.pubsub
+  .schedule("59 4-23 * * *")
+  .onRun(async (context) => {
+    const now = moment(admin.firestore.Timestamp.now().toDate()).utcOffset(-180)
+
+    const query = admin
+      .firestore()
+      .collection("reservas")
+      .where("estadoActual", "==", 'CREADA')
+
+    const reservas = await query.get()
+    reservas.forEach(snapshot => {
+      let changed = false
+      const reserva = snapshot.data()
+      let estadoActual
+      const estados = reserva.estados
+      console.log("RESERVA", reserva)
+      const fechaRegistroReserva = moment(reserva.fechaRegistro.toDate()).utcOffset(-180)
+
+      if (now.isSameOrAfter(fechaRegistroReserva.add(12, "hours"))) {
+        estados.push({
+          estado: 'CANCELADA',
+          fecha: admin.firestore.Timestamp.now(),
+          motivo: 'Pasaron 12 horas sin que la reserva fuera confirmada por el Complejo'
+        })
+        estadoActual = 'CANCELADA'
+        changed = true
+      }
+
+      if (changed) {
+        console.log("SE EJECUTO UPDATE")
+        snapshot.ref.update({ estados, estadoActual })
+      }
+    })
+  })
