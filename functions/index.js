@@ -376,6 +376,7 @@ exports.registerNotificationNewReserva = functions.firestore.document('reservas/
     const complejoId = data.complejo.id
     const fechaInicio = moment(data.fechaInicio.toDate())
     const fechaFin = moment(data.fechaFin.toDate())
+    const fechaRegistro = moment(data.fechaRegistro.toDate())
 
     const complejoSnap = await admin.firestore().collection('complejos').doc(complejoId).get()
     const complejoData = complejoSnap.data()
@@ -398,6 +399,7 @@ exports.registerNotificationNewReserva = functions.firestore.document('reservas/
         espacio: data.espacio.descripcion,
         fechaInicio: admin.firestore.Timestamp.fromDate(fechaInicio.toDate()),
         fechaFin: admin.firestore.Timestamp.fromDate(fechaFin.toDate()),
+        fechaRegistro: admin.firestore.Timestamp.fromDate(fechaRegistro.toDate()),
         leida: false,
         complejo: {
           id: complejoId,
