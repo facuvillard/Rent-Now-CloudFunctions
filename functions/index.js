@@ -596,3 +596,62 @@ exports.updateReservasStateWhenStateIsCreate = functions.pubsub
       }
     })
   })
+
+  exports.registerValoracionToComplejo = functions.https.onCall(
+    async (valoracion) => {
+      console.log("valoracion", valoracion);
+      try {
+        await admin
+          .firestore()
+          .collection("complejos")
+          .doc(valoracion.complejoId)
+          .collection("valoraciones")
+          .add({
+            reservaId: valoracion.reservaId,
+            puntaje: valoracion.puntaje,
+            cliente: valoracion.cliente,
+            comentario: valoracion.comentario,
+            fecha: admin.firestore.Timestamp.now(),
+          });
+  
+        const valoraciones = await admin
+          .firestore()
+          .collection("complejos")
+          .doc(valoracion.complejoId)
+          .collection("valoraciones")
+          .get();
+  
+        const valoracionesAcum = valoraciones.docs.reduce((prev, snapshot) => {
+          const data = snapshot.data();
+          return prev + data.puntaje;
+        }, 0);
+  
+        const newPromedio =
+          valoracionesAcum.toFixed(2) / valoraciones.docs.length;
+  
+        await admin
+          .firestore()
+          .collection("complejos")
+          .doc(valoracion.complejoId)
+          .update({ valoracionPromedio: newPromedio });
+  
+        await admin
+          .firestore()
+          .collection("reservas")
+          .doc(valoracion.reservaId)
+          .update({ estaValorada: true });
+  
+        return {
+          status: "OK",
+          message: `Valoracion registrada con exito`,
+        };
+      } catch (error) {
+        console.log("ERROR", error);
+        return {
+          status: "ERROR",
+          message: `Error al registrar la valoracion`,
+          error: error,
+        };
+      }
+    }
+  );
