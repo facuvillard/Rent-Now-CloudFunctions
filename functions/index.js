@@ -525,24 +525,25 @@ exports.registerNotificationReservaTerminada = functions.firestore.document('res
     const reservaId = context.params.reservaId;
     const afterData = change.after.data();
     const beforeData = change.before.data();
-    const complejoId = data.complejo.id
+    const complejoId = afterData.complejo.id
+    const clienteId = afterData.cliente.id
 
     if (!afterData.reservaApp) {
       return;
     }
 
-    if (afterData.estados[-1].estado !== 'FINALIZADA' || beforeData.estados[-1].estado === 'FINALIZADA') {
+    if (afterData.estados[afterData.estados.length - 1].estado !== 'FINALIZADA' || beforeData.estados[afterData.estados.length - 1].estado === 'FINALIZADA') {
       return
     }
 
     const complejoSnap = await admin.firestore().collection('complejos').doc(complejoId).get()
     const complejoData = complejoSnap.data()
 
-    const userToNotifyRef = admin.firestore().collection(`usuariosApp/${usuario.id}/notificaciones`).doc(reservaId)
+    const userToNotifyRef = admin.firestore().collection(`usuariosApp/${clienteId}/notificaciones`).doc(reservaId)
 
     const notification = {
       idReserva: reservaId,
-      tipo: 'CAMBIO ESTADO - FINALIZADA',
+      tipo: 'RESERVA_FINALIZADA',
       mensaje: "Su reserva se concretó con éxito. Desea valorar el complejo ? ",
       espacio: afterData.espacio.descripcion,
       fechaInicio: afterData.fechaInicio.toString(),
@@ -554,19 +555,9 @@ exports.registerNotificationReservaTerminada = functions.firestore.document('res
       }
     }
 
-    await userToNotifyRef.set(notification)
-
-    return {
-      status: "OK",
-      message: `Notificacion Enviada con exito`,
-    };
+    await userToNotifyRef.set(notification)   
   } catch (error) {
     console.log("ERROR", error);
-    return {
-      status: "ERROR",
-      message: `Error al Notificar la reserva`,
-      error: error,
-    };
   }
 });
 
