@@ -531,6 +531,7 @@ exports.createReservaApp = functions.https.onCall(async (params) => {
       monto: params.monto,
       esFijo: false,
       reservaApp: true,
+      estadoActual: "CREADA"
     };
 
     console.log("Reserva recibida: ", params);
