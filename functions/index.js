@@ -616,6 +616,9 @@ exports.registerNotificationReservaTerminada = functions.firestore
       const beforeData = change.before.data();
       const complejoId = afterData.complejo.id;
       const clienteId = afterData.cliente.id;
+      const fechaInicio = moment(afterData.fechaInicio.toDate());
+      const fechaFin = moment(afterData.fechaFin.toDate());
+      const fechaRegistro = moment(afterData.fechaRegistro.toDate());
 
       if (!afterData.reservaApp) {
         return;
@@ -623,7 +626,7 @@ exports.registerNotificationReservaTerminada = functions.firestore
 
       if (
         afterData.estados[afterData.estados.length - 1].estado !==
-          "FINALIZADA" ||
+        "FINALIZADA" ||
         beforeData.estados[afterData.estados.length - 1].estado === "FINALIZADA"
       ) {
         return;
@@ -645,10 +648,11 @@ exports.registerNotificationReservaTerminada = functions.firestore
         idReserva: reservaId,
         tipo: "RESERVA_FINALIZADA",
         mensaje:
-          "Su reserva se concretó con éxito. Desea valorar el complejo ? ",
+          "Su reserva se concretó con éxito. ¿ Desea valorar el complejo ? ",
         espacio: afterData.espacio.descripcion,
-        fechaInicio: afterData.fechaInicio.toString(),
-        fechaFin: afterData.fechaFin.toString(),
+        fechaInicio: admin.firestore.Timestamp.fromDate(fechaInicio.toDate()),
+        fechaFin: admin.firestore.Timestamp.fromDate(fechaFin.toDate()),
+        fechaRegistro: admin.firestore.Timestamp.fromDate(fechaRegistro.toDate()),
         leida: false,
         complejo: {
           id: complejoId,
