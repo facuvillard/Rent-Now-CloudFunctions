@@ -426,6 +426,14 @@ exports.registerNotificationNewReserva = functions.firestore
     try {
       const reservaId = context.params.reservaId;
       const data = snapshot.data();
+
+      if (!data.reservaApp) {
+        return {
+          status: "OK",
+          message: `La reserva no fue realizada por la app mobile`,
+        }
+      }
+
       const complejoId = data.complejo.id;
       const fechaInicio = moment(data.fechaInicio.toDate());
       const fechaFin = moment(data.fechaFin.toDate());
