@@ -224,12 +224,7 @@ exports.updateReservasState = functions.pubsub
             )
           ) {
             console.log("SE CAMBIO A CANCELADA");
-            estados.push({
-              estado: "CANCELADA",
-              fecha: admin.firestore.Timestamp.now(),
-              motivo: "La reserva nunca fue confirmada por el Complejo.",
-            });
-            estadoActual = "CANCELADA";
+            A
             changed = true;
           }
           break;
@@ -369,6 +364,7 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
           horariosList.forEach((horario, index) => {
             reservas.forEach((reservaDoc) => {
               const reserva = reservaDoc.data();
+              const estadoActual = reserva.estadoActual
               const horaInicioReserva = moment(
                 reserva.fechaInicio.toDate(),
                 "HH:mm"
@@ -386,8 +382,7 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
                   horaInicioReserva,
                   horaFinReserva,
                   horaFinHorario,
-                  horario,
-                  espacio
+                  estadoActual
                 )
               ) {
                 const filteredIds = horario.espacios.filter((id) => {
@@ -556,6 +551,7 @@ exports.createReservaApp = functions.https.onCall(async (params) => {
       reservas.forEach((reservaDoc) => {
         const reserva = reservaDoc.data();
         console.log("Reserva: ", reserva);
+        const estadoActual = reserva.estadoActual
         const horaInicioExistingReserva = moment(
           reserva.fechaInicio.toDate(),
           "HH:mm"
@@ -576,7 +572,8 @@ exports.createReservaApp = functions.https.onCall(async (params) => {
             horaInicioToSave,
             horaInicioExistingReserva,
             horaFinExistingReserva,
-            horaFinToSave
+            horaFinToSave,
+            estadoActual
           )
         ) {
           console.log("entro al False");
