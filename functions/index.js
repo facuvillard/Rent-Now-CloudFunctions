@@ -7,7 +7,7 @@ const { getMinAndMaxHora, buildHorariosList, getFranjaHoraria } = require("./uti
 
 
 
-// Comandos: 
+// Comandos:
 //   -Para deployar todas las funciones firebase deploy --only functions
 //   -Para deployar solo una funcion especifica firebase deploy --only "functions:nombreFuncion"
 admin.initializeApp();
@@ -90,7 +90,7 @@ exports.sendContactEmail = functions.https.onCall(async (data, context) => {
   try {
     let transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
-      port: 465,
+      port: 587,
       secure: false,
       auth: {
         user: "contacto.rentnow@gmail.com",
@@ -252,7 +252,8 @@ exports.createDocForNewUser = functions.https.onCall(async (extraData) => {
         habilitado: true,
         celular: extraData.celular,
         ciudad: extraData.ciudad,
-        provincia: extraData.provincia
+        provincia: extraData.provincia,
+        fechaNacimiento: extraData.fechaNacimiento
       });
 
     return {
@@ -273,10 +274,10 @@ exports.createDocForNewUser = functions.https.onCall(async (extraData) => {
 /**
 obtenerHorariosDisponiblesParaDiaAndTipoEspacio(dia, tipoEspacio, idComplejo, duracion) {
   obtener los espacios de idComplejo y tipoEspacio
-  se construye una lista de los horarios en que podian ser reservados los espacios de la siguiente manera :  [{desde: 8:00 (minima horaDesde de los espacios) , hasta: 9:00 , disponible: false,  espacios:[]}, 
-                                                                                                                ....., 
+  se construye una lista de los horarios en que podian ser reservados los espacios de la siguiente manera :  [{desde: 8:00 (minima horaDesde de los espacios) , hasta: 9:00 , disponible: false,  espacios:[]},
+                                                                                                                .....,
                                                                                                                 {desde: 8:00 , hasta: 9:00 (maxima horaHasta de los espacios) , disponible: true, espacios:[id1,id2]} ]
- 
+
   por cada espacio se obtienen las reservas filtrando por el dia
   por cada reserva se elimina el espacio del listado de espacios de ese horario
   retornar horariosDisponibles, espacios
@@ -377,7 +378,7 @@ exports.registerNotificationNewReserva = functions.firestore.document('reservas/
       console.log("REFS",usersToNotifyRefs)
 
       usersToNotifyRefs.forEach( async userRef => {
-        let notification = { 
+        let notification = {
           idReserva: reservaId ,
           tipo: "NUEVA RESERVA",
           mensaje: "Nueva reserva",
@@ -392,7 +393,7 @@ exports.registerNotificationNewReserva = functions.firestore.document('reservas/
         }
 
        await userRef.set(notification)
-      }) 
+      })
 
       return {
         status: "OK",
@@ -524,7 +525,7 @@ exports.registerNotificationReservaTerminada = functions.firestore.document('res
 
       const userToNotifyRef = admin.firestore().collection(`usuariosApp/${usuario.id}/notificaciones`).doc(reservaId)
 
-      const notification = { 
+      const notification = {
           idReserva: reservaId ,
           tipo: 'CAMBIO ESTADO - FINALIZADA',
           mensaje: "Su reserva se concretó con éxito. Desea valorar el complejo ? ",
