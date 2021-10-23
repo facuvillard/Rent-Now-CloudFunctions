@@ -94,7 +94,7 @@ exports.sendContactEmail = functions.https.onCall(async (data, context) => {
   try {
     let transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
-      port: 465,
+      port: 587,
       secure: false,
       auth: {
         user: "contacto.rentnow@gmail.com",
@@ -278,16 +278,21 @@ exports.getTiposEspacioByComplejoId = functions.https.onCall(
 
 exports.createDocForNewUser = functions.https.onCall(async (extraData) => {
   try {
-    console.log("extra user data", extraData);
-    await admin.firestore().collection("usuariosApp").doc(extraData.uid).set({
-      nombre: extraData.nombre,
-      apellido: extraData.apellido,
-      email: extraData.email,
-      habilitado: true,
-      celular: extraData.celular,
-      ciudad: extraData.ciudad,
-      provincia: extraData.provincia,
-    });
+    console.log('extra user data', extraData)
+    await admin
+      .firestore()
+      .collection("usuariosApp")
+      .doc(extraData.uid)
+      .set({
+        nombre: extraData.nombre,
+        apellido: extraData.apellido,
+        email: extraData.email,
+        habilitado: true,
+        celular: extraData.celular,
+        ciudad: extraData.ciudad,
+        provincia: extraData.provincia,
+        fechaNacimiento: extraData.fechaNacimiento
+      });
 
     return {
       status: "OK",
@@ -305,10 +310,10 @@ exports.createDocForNewUser = functions.https.onCall(async (extraData) => {
 /**
 obtenerHorariosDisponiblesParaDiaAndTipoEspacio(dia, tipoEspacio, idComplejo, duracion) {
   obtener los espacios de idComplejo y tipoEspacio
-  se construye una lista de los horarios en que podian ser reservados los espacios de la siguiente manera :  [{desde: 8:00 (minima horaDesde de los espacios) , hasta: 9:00 , disponible: false,  espacios:[]}, 
-                                                                                                                ....., 
+  se construye una lista de los horarios en que podian ser reservados los espacios de la siguiente manera :  [{desde: 8:00 (minima horaDesde de los espacios) , hasta: 9:00 , disponible: false,  espacios:[]},
+                                                                                                                .....,
                                                                                                                 {desde: 8:00 , hasta: 9:00 (maxima horaHasta de los espacios) , disponible: true, espacios:[id1,id2]} ]
- 
+
   por cada espacio se obtienen las reservas filtrando por el dia
   por cada reserva se elimina el espacio del listado de espacios de ese horario
   retornar horariosDisponibles, espacios
@@ -470,6 +475,7 @@ exports.registerNotificationNewReserva = functions.firestore
           leida: false,
           complejo: {
             id: complejoId,
+
             nombre: complejoData.nombre,
           },
         };
@@ -704,7 +710,6 @@ exports.updateReservasStateWhenStateIsCreate = functions.pubsub
         estadoActual = "CANCELADA";
         changed = true;
       }
-
       if (changed) {
         console.log("SE EJECUTO UPDATE");
         snapshot.ref.update({ estados, estadoActual });
@@ -769,4 +774,5 @@ exports.registerValoracionToComplejo = functions.https.onCall(
       };
     }
   }
+
 );
