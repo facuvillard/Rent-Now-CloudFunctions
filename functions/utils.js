@@ -1,6 +1,8 @@
-var moment = require("moment")
+var moment = require("moment-timezone")
 require('moment/locale/es')
 const admin = require("firebase-admin");
+
+moment.tz.setDefault("America/Argentina/Buenos_Aires")
 
 const capitalize = (string) => {
   return string.charAt(0).toUpperCase() + string.slice(1);
@@ -11,15 +13,14 @@ exports.getMinAndMaxHora = (complejo, fecha) => {
   let horaDesde = null
   let horaHasta = null
   const diaReserva = capitalize(moment(fecha, 'DD/MM/YYYY').format('dddd'))
-  const now = moment(admin.firestore.Timestamp.now().toDate()).utcOffset(-180)
-  const nowMoment = moment()
-  console.log(nowMoment)
+  const now = moment(admin.firestore.Timestamp.now().toDate())
+  console.log('Fecha ahora: ', now)
   for (const dia in complejo.horarios) {
     if (dia === diaReserva && complejo.horarios[dia].abre) {
       if (moment(fecha, 'DD/MM/YYYY').isSame(now, 'day')) {
         if (moment(complejo.horarios[dia].desde).isBefore(now)) {
           const diferencia = 180 - (now.minute() % 30);
-          horaDesde = (moment(now.add(diferencia, "minutes").toDate()).utcOffset(-180)).format('LT');
+          horaDesde = (moment(now.add(diferencia, "minutes").toDate())).format('LT');
           horaHasta = complejo.horarios[dia].hasta
         }
       }
