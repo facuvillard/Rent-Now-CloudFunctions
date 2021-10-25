@@ -1,13 +1,15 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
-const moment = require("moment");
+const moment = require("moment-timezone");
 const {
   getMinAndMaxHora,
   buildHorariosList,
   getFranjaHoraria,
   isFreeHorario,
 } = require("./utils");
+
+moment.tz.setDefault("America/Argentina/Buenos_Aires")
 
 // Comandos:
 //   -Para deployar todas las funciones firebase deploy --only functions
@@ -73,16 +75,14 @@ exports.updateUsuario = functions.firestore
       }
       return {
         status: "OK",
-        message: `Usuario con el email ${
-          after.data().email
-        } actualizado con exito`,
+        message: `Usuario con el email ${after.data().email
+          } actualizado con exito`,
       };
     } catch (error) {
       return {
         status: "ERROR",
-        message: `Error al actualizar usuario con el email ${
-          after.data().email
-        }`,
+        message: `Error al actualizar usuario con el email ${after.data().email
+          }`,
         error: error,
       };
     }
@@ -374,10 +374,8 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
                 reserva.fechaInicio.toDate(),
                 "HH:mm"
               )
-                .add(-3, "hours")
                 .format("HH:mm");
               const horaFinReserva = moment(reserva.fechaFin.toDate(), "HH:mm")
-                .add(-3, "hours")
                 .format("HH:mm");
               const horaInicioHorario = horario.horaDesde; // 08:30 -> moment(8:30) = 05/07/2021 8:30
               const horaFinHorario = horario.horaHasta;
@@ -570,13 +568,11 @@ exports.createReservaApp = functions.https.onCall(async (params) => {
           reserva.fechaInicio.toDate(),
           "HH:mm"
         )
-          .add(-3, "hours")
           .format("HH:mm");
         const horaFinExistingReserva = moment(
           reserva.fechaFin.toDate(),
           "HH:mm"
         )
-          .add(-3, "hours")
           .format("HH:mm");
         const horaInicioToSave = moment(fechaInicioToSave).format("HH:mm");
         const horaFinToSave = moment(fechaFinToSave).format("HH:mm");
