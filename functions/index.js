@@ -8,8 +8,9 @@ const {
   getFranjaHoraria,
   isFreeHorario,
 } = require("./utils");
+const { firestore } = require("firebase-admin");
 
-moment.tz.setDefault("America/Argentina/Buenos_Aires")
+moment.tz.setDefault("America/Argentina/Buenos_Aires");
 
 // Comandos:
 //   -Para deployar todas las funciones firebase deploy --only functions
@@ -75,14 +76,16 @@ exports.updateUsuario = functions.firestore
       }
       return {
         status: "OK",
-        message: `Usuario con el email ${after.data().email
-          } actualizado con exito`,
+        message: `Usuario con el email ${
+          after.data().email
+        } actualizado con exito`,
       };
     } catch (error) {
       return {
         status: "ERROR",
-        message: `Error al actualizar usuario con el email ${after.data().email
-          }`,
+        message: `Error al actualizar usuario con el email ${
+          after.data().email
+        }`,
         error: error,
       };
     }
@@ -224,7 +227,7 @@ exports.updateReservasState = functions.pubsub
             )
           ) {
             console.log("SE CAMBIO A CANCELADA");
-            A
+            A;
             changed = true;
           }
           break;
@@ -278,21 +281,17 @@ exports.getTiposEspacioByComplejoId = functions.https.onCall(
 
 exports.createDocForNewUser = functions.https.onCall(async (extraData) => {
   try {
-    console.log('extra user data', extraData)
-    await admin
-      .firestore()
-      .collection("usuariosApp")
-      .doc(extraData.uid)
-      .set({
-        nombre: extraData.nombre,
-        apellido: extraData.apellido,
-        email: extraData.email,
-        habilitado: true,
-        celular: extraData.celular,
-        ciudad: extraData.ciudad,
-        provincia: extraData.provincia,
-        fechaNacimiento: extraData.fechaNacimiento
-      });
+    console.log("extra user data", extraData);
+    await admin.firestore().collection("usuariosApp").doc(extraData.uid).set({
+      nombre: extraData.nombre,
+      apellido: extraData.apellido,
+      email: extraData.email,
+      habilitado: true,
+      celular: extraData.celular,
+      ciudad: extraData.ciudad,
+      provincia: extraData.provincia,
+      fechaNacimiento: extraData.fechaNacimiento,
+    });
 
     return {
       status: "OK",
@@ -369,14 +368,15 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
           horariosList.forEach((horario, index) => {
             reservas.forEach((reservaDoc) => {
               const reserva = reservaDoc.data();
-              const estadoActual = reserva.estadoActual
+              const estadoActual = reserva.estadoActual;
               const horaInicioReserva = moment(
                 reserva.fechaInicio.toDate(),
                 "HH:mm"
-              )
-                .format("HH:mm");
-              const horaFinReserva = moment(reserva.fechaFin.toDate(), "HH:mm")
-                .format("HH:mm");
+              ).format("HH:mm");
+              const horaFinReserva = moment(
+                reserva.fechaFin.toDate(),
+                "HH:mm"
+              ).format("HH:mm");
               const horaInicioHorario = horario.horaDesde; // 08:30 -> moment(8:30) = 05/07/2021 8:30
               const horaFinHorario = horario.horaHasta;
               if (
@@ -429,7 +429,7 @@ exports.registerNotificationNewReserva = functions.firestore
         return {
           status: "OK",
           message: `La reserva no fue realizada por la app mobile`,
-        }
+        };
       }
 
       const complejoId = data.complejo.id;
@@ -538,7 +538,7 @@ exports.createReservaApp = functions.https.onCall(async (params) => {
       monto: params.monto,
       esFijo: false,
       reservaApp: true,
-      estadoActual: "CREADA"
+      estadoActual: "CREADA",
     };
 
     console.log("Reserva recibida: ", params);
@@ -563,17 +563,15 @@ exports.createReservaApp = functions.https.onCall(async (params) => {
       reservas.forEach((reservaDoc) => {
         const reserva = reservaDoc.data();
         console.log("Reserva: ", reserva);
-        const estadoActual = reserva.estadoActual
+        const estadoActual = reserva.estadoActual;
         const horaInicioExistingReserva = moment(
           reserva.fechaInicio.toDate(),
           "HH:mm"
-        )
-          .format("HH:mm");
+        ).format("HH:mm");
         const horaFinExistingReserva = moment(
           reserva.fechaFin.toDate(),
           "HH:mm"
-        )
-          .format("HH:mm");
+        ).format("HH:mm");
         const horaInicioToSave = moment(fechaInicioToSave).format("HH:mm");
         const horaFinToSave = moment(fechaFinToSave).format("HH:mm");
 
@@ -633,8 +631,9 @@ exports.registerNotificationReservaTerminada = functions.firestore
 
       if (
         afterData.estados[afterData.estados.length - 1].estado !==
-        "FINALIZADA" ||
-        beforeData.estados[afterData.estados.length - 1].estado === "FINALIZADA"
+          "FINALIZADA" ||
+        beforeData.estados[beforeData.estados.length - 1].estado ===
+          "FINALIZADA"
       ) {
         return;
       }
@@ -659,7 +658,9 @@ exports.registerNotificationReservaTerminada = functions.firestore
         espacio: afterData.espacio.descripcion,
         fechaInicio: admin.firestore.Timestamp.fromDate(fechaInicio.toDate()),
         fechaFin: admin.firestore.Timestamp.fromDate(fechaFin.toDate()),
-        fechaRegistro: admin.firestore.Timestamp.fromDate(fechaRegistro.toDate()),
+        fechaRegistro: admin.firestore.Timestamp.fromDate(
+          fechaRegistro.toDate()
+        ),
         leida: false,
         complejo: {
           id: complejoId,
@@ -770,5 +771,67 @@ exports.registerValoracionToComplejo = functions.https.onCall(
       };
     }
   }
-
 );
+
+exports.updateUserBlacklistData = functions.firestore
+  .document("reservas/{reservaId}")
+  .onWrite(async (change, context) => {
+    try {
+      const afterData = change.after.data();
+
+      if (!afterData.reservaApp) {
+        return;
+      }
+
+      const clienteId = afterData.cliente.id;
+      const clienteRef = admin
+        .firestore()
+        .collection("usuariosApp")
+        .doc(clienteId);
+
+      if (!change.before.exists) {
+        clienteRef.update({
+          cantidadCreadas: firestore.FieldValue.increment(1),
+        });
+        return;
+      }
+
+      const beforeData = change.before.data();
+      const beforeEstadoActual = beforeData.estadoActual;
+      const afterEstadoActual = afterData.estadoActual;
+      const changedToSinConcurrencia =
+        beforeEstadoActual !== "SIN CONCURRENCIA" &&
+        afterEstadoActual === "SIN CONCURRENCIA";
+
+      if (changedToSinConcurrencia) {
+        clienteRef.update({
+          cantidadSinConcurrencia: firestore.FieldValue.increment(1),
+        });
+      }
+      return;
+    } catch (e) {
+      console.log("ERROR - updateUserBlacklistData", e);
+    }
+  });
+
+exports.updateReservaEstadoActual = functions.firestore
+  .document("reservas/{reservaId}")
+  .onUpdate(async (change, context) => {
+    try {
+      const afterData = change.after.data();
+      const afterLastEstado = afterData.estados[afterData.estados.length - 1];
+      const afterEstadoActual = afterData.estadoActual;
+
+      if (afterEstadoActual === afterLastEstado.estado) {
+        return;
+      }
+
+      change.after.ref.update({
+        estadoActual: afterLastEstado.estado,
+      });
+
+      return;
+    } catch (e) {
+      console.log("ERROR - updateReservaEstadoActual", e);
+    }
+  });
