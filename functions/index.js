@@ -797,11 +797,12 @@ exports.updateUserBlacklistData = functions.firestore
       }
 
       const beforeData = change.before.data();
-      const beforeEstadoActual = beforeData.estadoActual;
+      const beforeEstados = beforeData.estados;
       const afterEstadoActual = afterData.estadoActual;
       const changedToSinConcurrencia =
-        beforeEstadoActual !== "SIN CONCURRENCIA" &&
-        afterEstadoActual === "SIN CONCURRENCIA";
+        !beforeEstados.some(
+          (estadoObj) => estadoObj.estado === "SIN CONCURRENCIA"
+        ) && afterEstadoActual === "SIN CONCURRENCIA";
 
       if (changedToSinConcurrencia) {
         clienteRef.update({
