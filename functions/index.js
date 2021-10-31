@@ -612,7 +612,7 @@ exports.createReservaApp = functions.https.onCall(async (params) => {
   }
 });
 
-exports.registerNotificationReservaTerminada = functions.firestore
+exports.registerNotificationToAppUser = functions.firestore
   .document("reservas/{reservaId}")
   .onUpdate(async (change, context) => {
     try {
@@ -628,13 +628,15 @@ exports.registerNotificationReservaTerminada = functions.firestore
       if (!afterData.reservaApp) {
         return;
       }
+      const beforeLastEstado =
+        beforeData.estados[beforeData.estados.length - 1].estado;
+      const afterLastEstado =
+        afterData.estados[afterData.estados.length - 1].estado;
+      const afterLastEstadoMotivo =
+        afterData.estados[afterData.estados.length - 1].motivo;
+      const estadoHasChanged = beforeLastEstado !== afterLastEstado;
 
-      if (
-        afterData.estados[afterData.estados.length - 1].estado !==
-          "FINALIZADA" ||
-        beforeData.estados[beforeData.estados.length - 1].estado ===
-          "FINALIZADA"
-      ) {
+      if (!estadoHasChanged) {
         return;
       }
 
@@ -650,23 +652,85 @@ exports.registerNotificationReservaTerminada = functions.firestore
         .collection(`usuariosApp/${clienteId}/notificaciones`)
         .doc(reservaId);
 
-      const notification = {
-        idReserva: reservaId,
-        tipo: "RESERVA_FINALIZADA",
-        mensaje:
-          "Su reserva se concretó con éxito. ¿ Desea valorar el complejo ? ",
-        espacio: afterData.espacio.descripcion,
-        fechaInicio: admin.firestore.Timestamp.fromDate(fechaInicio.toDate()),
-        fechaFin: admin.firestore.Timestamp.fromDate(fechaFin.toDate()),
-        fechaRegistro: admin.firestore.Timestamp.fromDate(
-          fechaRegistro.toDate()
-        ),
-        leida: false,
-        complejo: {
-          id: complejoId,
-          nombre: complejoData.nombre,
-        },
-      };
+      let notifcation;
+
+      switch (afterLastEstado) {
+        case "FINALIZADA": {
+          notification = {
+            idReserva: reservaId,
+            tipo: "RESERVA_FINALIZADA",
+            mensaje:
+              "Su reserva se concretó con éxito. ¿ Desea valorar el complejo ? ",
+            espacio: afterData.espacio.descripcion,
+            fechaInicio: admin.firestore.Timestamp.fromDate(
+              fechaInicio.toDate()
+            ),
+            fechaFin: admin.firestore.Timestamp.fromDate(fechaFin.toDate()),
+            fechaRegistro: admin.firestore.Timestamp.fromDate(
+              fechaRegistro.toDate()
+            ),
+            leida: false,
+            complejo: {
+              id: complejoId,
+              nombre: complejoData.nombre,
+            },
+          };
+          break;
+        }
+        case "CANCELADA": {
+          if (
+            afterLastEstadoMotivo ===
+            "La reserva ha sido cancelada por el cliente."
+          ) {
+            return;
+          }
+          notification = {
+            idReserva: reservaId,
+            tipo: "RESERVA_CANCELADA",
+            mensaje:
+              "Su reserva fue cancelada por el administrador del complejo.",
+            espacio: afterData.espacio.descripcion,
+            fechaInicio: admin.firestore.Timestamp.fromDate(
+              fechaInicio.toDate()
+            ),
+            fechaFin: admin.firestore.Timestamp.fromDate(fechaFin.toDate()),
+            fechaRegistro: admin.firestore.Timestamp.fromDate(
+              fechaRegistro.toDate()
+            ),
+            leida: false,
+            complejo: {
+              id: complejoId,
+              nombre: complejoData.nombre,
+            },
+          };
+          break;
+        }
+        case "CONFIRMADA": {
+          notification = {
+            idReserva: reservaId,
+            tipo: "RESERVA_CONFIRMADA",
+            mensaje:
+              "Su reserva fue confirmada por el administrador del complejo.",
+            espacio: afterData.espacio.descripcion,
+            fechaInicio: admin.firestore.Timestamp.fromDate(
+              fechaInicio.toDate()
+            ),
+            fechaFin: admin.firestore.Timestamp.fromDate(fechaFin.toDate()),
+            fechaRegistro: admin.firestore.Timestamp.fromDate(
+              fechaRegistro.toDate()
+            ),
+            leida: false,
+            complejo: {
+              id: complejoId,
+              nombre: complejoData.nombre,
+            },
+          };
+          break;
+        }
+        default: {
+          return;
+        }
+      }
 
       await userToNotifyRef.set(notification);
     } catch (error) {
