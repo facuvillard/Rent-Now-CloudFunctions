@@ -97,11 +97,11 @@ exports.sendContactEmail = functions.https.onCall(async (data, context) => {
   try {
     let transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
+      port: 465,
+      secure: true,
       auth: {
         user: "contacto.rentnow@gmail.com",
-        pass: "renteandoahora0*9",
+        pass: "gizqzjftbdpbvnax",
       },
     });
 
@@ -329,6 +329,7 @@ exports.getFreeHorariosAndEspacios = functions.https.onCall(async (params) => {
         .collection("espacios")
         .where("idComplejo", "==", params.idComplejo)
         .where("tipoEspacio", "==", params.tipoEspacio)
+        .where("estado", "==", "Disponible")
         .get()
     ).docs;
     const day = moment(params.fecha, "DD/MM/YYYY").date();
