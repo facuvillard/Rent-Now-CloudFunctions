@@ -13,12 +13,13 @@ exports.getMinAndMaxHora = (complejo, fecha) => {
   let horaDesde = null
   let horaHasta = null
   const diaReserva = capitalize(moment(fecha, 'DD/MM/YYYY').format('dddd'))
+  const horasAntesReserva = complejo.parametrosReserva.tiempoAntesTurno || 3
   const now = moment(admin.firestore.Timestamp.now().toDate())
   for (const dia in complejo.horarios) {
     if (dia === diaReserva && complejo.horarios[dia].abre) {
       if (moment(fecha, 'DD/MM/YYYY').isSame(now, 'day')) {
         if (moment(complejo.horarios[dia].desde, 'HH:mm').isBefore(now)) {
-          const diferencia = 180 - (now.minute() % 30);
+          const diferencia = (horasAntesReserva * 60) - (now.minute() % 30);
           horaDesde = (moment(now.add(diferencia, "minutes").toDate())).format('LT');
           horaHasta = complejo.horarios[dia].hasta
         }

@@ -767,12 +767,14 @@ exports.updateReservasStateWhenStateIsCreate = functions.pubsub
         reserva.fechaRegistro.toDate()
       ).utcOffset(-180);
 
-      if (now.isSameOrAfter(fechaRegistroReserva.add(12, "hours"))) {
+      const tiempoVencimiento = reserva.complejo.tiempoVencimiento || 12
+
+      if (now.isSameOrAfter(fechaRegistroReserva.add(tiempoVencimiento, "hours"))) {
         estados.push({
           estado: "CANCELADA",
           fecha: admin.firestore.Timestamp.now(),
           motivo:
-            "Pasaron 12 horas sin que la reserva fuera confirmada por el Complejo.",
+            `Pasaron ${tiempoVencimiento} horas sin que la reserva fuera confirmada por el Complejo.`,
         });
         estadoActual = "CANCELADA";
         changed = true;
