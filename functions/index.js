@@ -227,7 +227,12 @@ exports.updateReservasState = functions.pubsub
             )
           ) {
             console.log("SE CAMBIO A CANCELADA");
-            A;
+            estados.push({
+              estado: "CANCELADA",
+              fecha: admin.firestore.Timestamp.now(),
+              motivo: "La reserva nunca fue confirmada por el Complejo.",
+            });
+            estadoActual = "CANCELADA";
             changed = true;
           }
           break;
@@ -767,7 +772,7 @@ exports.updateReservasStateWhenStateIsCreate = functions.pubsub
           estado: "CANCELADA",
           fecha: admin.firestore.Timestamp.now(),
           motivo:
-            "Pasaron 12 horas sin que la reserva fuera confirmada por el Complejo",
+            "Pasaron 12 horas sin que la reserva fuera confirmada por el Complejo.",
         });
         estadoActual = "CANCELADA";
         changed = true;
